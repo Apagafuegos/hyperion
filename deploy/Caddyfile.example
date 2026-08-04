@@ -1,0 +1,33 @@
+# Example Caddy route for Hyperion. Replace the hostname before use.
+# Mirrors the proven VPS pattern from the mcp.carlos-santos.es site block:
+# Caddy performs Authentik forward_auth against the embedded outpost on
+# loopback, copies only identity headers, and reverse-proxies to Hyperion.
+# Hyperion independently requires X-Authentik-Username on all management
+# endpoints, so the upstream only ever sees Authentik-verified identity.
+hyperion.carlos-santos.es {
+	route {
+		encode zstd gzip
+
+		# Health endpoints remain loopback-only (404 for any external hit).
+		handle_path /healthz {
+			respond 404
+		}
+		handle_path /readyz {
+			respond 404
+		}
+
+		# Authentik outpost passthrough: the forward_auth redirect and
+		# callback (https://<host>/outpost.goauthentik.io/callback) must
+		# reach the outpost without re-entering forward_auth.
+		reverse_proxy /outpost.goauthentik.io/* 127.0.0.1:9000
+
+		# forward_auth copies the response identity headers over any
+		# client-supplied values, so the app never sees forged identity.
+		forward_auth 127.0.0.1:9000 {
+			uri /outpost.goauthentik.io/auth/caddy
+			copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+		}
+
+		reverse_proxy 127.0.0.1:8787
+	}
+}
