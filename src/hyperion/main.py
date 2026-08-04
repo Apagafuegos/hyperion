@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import cast
@@ -71,7 +71,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         probe_provider = _build_probe_provider(settings)
         app.state.runtime_provider = runtime_provider
         app.state.probe_provider = probe_provider
-        app.state.log_gateway = LogGateway(runtime_provider, catalog)
+        app.state.log_gateway = LogGateway(
+            runtime_provider, catalog, resolve_references=_resolve_log_references(store)
+        )
         # A failed initial cycle must not prevent startup: the supervisor keeps
         # running and publishes as soon as a cycle succeeds.
         await _run_cycle(runtime_provider, probe_provider, catalog, store)
@@ -116,6 +118,32 @@ def _build_probe_provider(settings: Settings) -> RouteProbeProvider:
 
 def _probe_urls(catalog: Catalog) -> tuple[str, ...]:
     return tuple(s.route_probe.url for s in catalog.services if s.route_probe is not None)
+
+
+def _resolve_log_references(
+    store: SnapshotStore,
+) -> Callable[[], dict[tuple[str, str], str]]:
+    """Resolver for docker container references from the latest snapshot.
+
+    The gateway reads references at request time so bindings always reflect
+    the current container state; before the first cycle publishes, the map is
+    empty and docker reads fail as LOG_SOURCE_UNAVAILABLE. Systemd units are
+    not mapped: the unit name is the selector.
+    """
+
+    def resolve() -> dict[tuple[str, str], str]:
+        pair = store.get()
+        if pair is None:
+            return {}
+        snapshot, _ = pair
+        references: dict[tuple[str, str], str] = {}
+        for service in snapshot.services:
+            for component in service.components:
+                if component.provider == "docker" and component.provider_ref is not None:
+                    references[(service.id, component.key)] = component.provider_ref
+        return references
+
+    return resolve
 
 
 async def _run_cycle(

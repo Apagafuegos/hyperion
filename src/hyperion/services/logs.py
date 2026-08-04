@@ -1,9 +1,18 @@
-"""Log gateway: allowlist resolution and bounded on-demand log reads."""
+"""Log gateway: allowlist resolution and bounded on-demand log reads.
+
+Tail semantics (§9): each source is fetched with the requested tail and the
+merged, time-ordered result is trimmed to the tail total. With N sources the
+merged set may briefly hold up to N * tail records (per-source over-fetch is
+accepted), but the final response always honors tail; the over-fetch is
+bounded and never leaks into the response.
+"""
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Literal
 
 from ..api.errors import ApiError
 from ..models import Catalog, LogRecord, LogsResponse
@@ -12,11 +21,16 @@ from ..providers.base import LogBinding, LogRecordIn, RuntimeProvider
 
 class LogGateway:
     def __init__(
-        self, runtime_provider: RuntimeProvider, catalog: Catalog, timeout: float = 5.0
+        self,
+        runtime_provider: RuntimeProvider,
+        catalog: Catalog,
+        timeout: float = 5.0,
+        resolve_references: Callable[[], dict[tuple[str, str], str]] | None = None,
     ) -> None:
         self._provider = runtime_provider
         self._catalog = catalog
         self._timeout = timeout
+        self._resolve_references = resolve_references or (lambda: {})
 
     async def read(
         self, service_id: str, source: str | None, tail: int, before: datetime | None
@@ -29,6 +43,7 @@ class LogGateway:
             if name not in service.logs.sources:
                 raise ApiError(404, "LOG_SOURCE_NOT_FOUND", "Log source is not allowlisted.", False)
 
+        references = self._resolve_references()
         records: list[LogRecord] = []
         for name in requested:
             component = next(
@@ -36,11 +51,25 @@ class LogGateway:
             )
             if component is None:
                 continue
+            provider: Literal["docker", "systemd"] = (
+                "systemd" if service.runtime.provider == "systemd" else "docker"
+            )
+            if provider == "docker":
+                reference = references.get((service_id, name))
+                if reference is None:
+                    raise ApiError(
+                        503,
+                        "LOG_SOURCE_UNAVAILABLE",
+                        "Logs are unavailable while the container reference is unknown.",
+                        True,
+                    )
+            else:
+                reference = component.selector
             binding = LogBinding(
-                provider="systemd" if service.runtime.provider == "systemd" else "docker",
+                provider=provider,
                 service_id=service_id,
                 source=name,
-                reference=component.selector,
+                reference=reference,
             )
             try:
                 fetched = await asyncio.wait_for(

@@ -13,6 +13,8 @@ from hyperion.services.logs import LogGateway
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
+RESOLVED = {("authentik", "server"): "authentik-server-1"}
+
 
 def catalog():
     return load_catalog(FIXTURES / "fixture-services.yaml")
@@ -40,7 +42,7 @@ class SlowRuntime:
 
 
 async def test_provider_exception_maps_to_log_source_unavailable() -> None:
-    gateway = LogGateway(RaisingRuntime(), catalog())
+    gateway = LogGateway(RaisingRuntime(), catalog(), resolve_references=lambda: RESOLVED)
     with pytest.raises(ApiError) as exc:
         await gateway.read("authentik", "server", 100, None)
     assert exc.value.status_code == 503
@@ -49,7 +51,9 @@ async def test_provider_exception_maps_to_log_source_unavailable() -> None:
 
 
 async def test_provider_timeout_maps_to_provider_timeout() -> None:
-    gateway = LogGateway(SlowRuntime(), catalog(), timeout=0.1)
+    gateway = LogGateway(
+        SlowRuntime(), catalog(), timeout=0.1, resolve_references=lambda: RESOLVED
+    )
     with pytest.raises(ApiError) as exc:
         await gateway.read("authentik", "server", 100, None)
     assert exc.value.status_code == 503
