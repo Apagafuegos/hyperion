@@ -1,0 +1,37 @@
+{
+  "t3-code": [
+    {"source": "t3code.service", "offsetSeconds": 25, "severity": "info", "stream": "journal", "message": "t3coded started successfully"},
+    {"source": "t3code.service", "offsetSeconds": 12, "severity": "info", "stream": "journal", "message": "HTTP request completed in 142ms"}
+  ],
+  "authentik": [
+    {"source": "server", "offsetSeconds": 40, "severity": "info", "stream": "stdout", "message": "GET /api/v3/core/users/ 200"},
+    {"source": "worker", "offsetSeconds": 18, "severity": "warning", "stream": "stdout", "message": "flow executor retry in 2s"},
+    {"source": "server", "offsetSeconds": 5, "severity": "error", "stream": "stderr", "message": "rate limiting burst exceeded"}
+  ],
+  "librechat": [
+    {"source": "librechat", "offsetSeconds": 60, "severity": "info", "stream": "stdout", "message": "listening on 0.0.0.0:3080"}
+  ],
+  "rarecord": [
+    {"source": "app", "offsetSeconds": 90, "severity": "info", "stream": "stdout", "message": "request handled"},
+    {"source": "postgres", "offsetSeconds": 45, "severity": "error", "stream": "stderr", "message": "connection to client lost"}
+  ],
+  "langfuse": [
+    {"source": "langfuse", "offsetSeconds": 30, "severity": "info", "stream": "stdout", "message": "trace ingested: 1.2k tokens"},
+    {"source": "langfuse-worker", "offsetSeconds": 20, "severity": "info", "stream": "stdout", "message": "export batch flushed"}
+  ],
+  "mcp-observatory": [
+    {"source": "observatory", "offsetSeconds": 15, "severity": "info", "stream": "stdout", "message": "observing docker runtime"}
+  ],
+  "the-vault": [
+    {"source": "the-vault", "offsetSeconds": 8, "severity": "info", "stream": "stdout", "message": "session started"}
+  ],
+  "shared-postgres": [
+    {"source": "postgres", "offsetSeconds": 300, "severity": "notice", "stream": "stderr", "message": "checkpoint complete"}
+  ],
+  "demo-dormant": [
+    {"source": "demo-web", "offsetSeconds": 240, "severity": "info", "stream": "stdout", "message": "heartbeat"}
+  ],
+  "demo-worker": [
+    {"source": "demoworker.service", "offsetSeconds": 120, "severity": "info", "stream": "journal", "message": "worker cycle completed"}
+  ]
+}

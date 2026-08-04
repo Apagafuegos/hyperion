@@ -1,0 +1,16 @@
+{
+  "provider": "probe",
+  "state": "available",
+  "observedAt": "2026-08-04T06:00:00Z",
+  "results": [
+    {"url": "https://t3.carlos-santos.es", "state": "reachable", "statusCode": 200, "latencyMs": 210, "consecutiveFailures": 0, "observedAt": "2026-08-04T06:00:00Z", "error": null},
+    {"url": "https://auth.carlos-santos.es", "state": "slow", "statusCode": 302, "latencyMs": 1410, "consecutiveFailures": 0, "observedAt": "2026-08-04T06:00:00Z", "error": null},
+    {"url": "https://ai.carlos-santos.es", "state": "failed", "statusCode": 502, "latencyMs": 300, "consecutiveFailures": 2, "observedAt": "2026-08-04T06:00:00Z", "error": null},
+    {"url": "https://rare.carlos-santos.es", "state": "reachable", "statusCode": 200, "latencyMs": 190, "consecutiveFailures": 0, "observedAt": "2026-08-04T06:00:00Z", "error": null},
+    {"url": "https://langfuse.carlos-santos.es", "state": "failed", "statusCode": null, "latencyMs": null, "consecutiveFailures": 2, "observedAt": "2026-08-04T06:00:00Z", "error": "timeout"},
+    {"url": "https://mcp.carlos-santos.es", "state": "reachable", "statusCode": 200, "latencyMs": 320, "consecutiveFailures": 0, "observedAt": "2026-08-04T06:00:00Z", "error": null},
+    {"url": "https://mcp.carlos-santos.es/the-vault/mcp", "state": "reachable", "statusCode": 200, "latencyMs": 150, "consecutiveFailures": 0, "observedAt": "2026-08-04T06:00:00Z", "error": null},
+    {"url": "https://demo-dormant.carlos-santos.es", "state": "reachable", "statusCode": 200, "latencyMs": 120, "consecutiveFailures": 0, "observedAt": "2026-08-04T06:00:00Z", "error": null}
+  ],
+  "error": null
+}
