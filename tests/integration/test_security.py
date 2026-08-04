@@ -9,6 +9,15 @@ from __future__ import annotations
 
 import re
 
+# Environment-shaped "KEY=value" inside a JSON string, e.g. "HOME=/root",
+# "SECRET_KEY=abc", or an empty-valued "PATH=". The double quote must
+# precede the key, so camelCase JSON keys ("schemaVersion":) and URLs
+# (?FOO=bar mid-string) never match; matched against the JSON wire format
+# (response.text), not the single-quoted dict repr.
+_ENV_SHAPE = re.compile(r'"[A-Z][A-Z0-9_]{2,}=')
+# Explicit keys on the uppercased text as a belt-and-suspenders pass.
+_ENV_KEYS = ("PATH=", "HOME=", "LANG=", "SECRET", "TOKEN")
+
 
 def get(client, path, identity=True, **kwargs):
     headers = kwargs.pop("headers", {})
@@ -31,15 +40,29 @@ def test_health_endpoints_do_not_leak_state(client) -> None:
     assert set(ready.json()) == {"status"}
 
 
+def test_health_endpoints_do_not_require_identity(client) -> None:
+    # Loopback-only enforcement is Caddy-level; the app itself must never
+    # add auth to the health endpoints.
+    assert client.get("/healthz").status_code == 200
+    assert client.get("/readyz").status_code == 200
+
+
 def test_snapshot_never_contains_environment_values(client) -> None:
-    payload = get(client, "/api/v1/snapshot").json()
-    text = str(payload)
-    assert "PATH=" not in text
-    assert "SECRET" not in text.upper()
-    assert "TOKEN" not in text.upper()
+    # Fixture-path guarantee: the fixture evidence is static and clean.
+    # Provider_ref and image pass through unsanitized (reconciler copies
+    # evidence verbatim), so the §16.2 live guarantee depends on provider
+    # scrubbing at the docker/systemd boundary.
+    response = get(client, "/api/v1/snapshot")
+    payload = response.json()
+    text = response.text
+    assert _ENV_SHAPE.search(text) is None, "environment-shaped key=value leaked into the snapshot"
+    upper = text.upper()
+    for key in _ENV_KEYS:
+        assert key not in upper, f"{key} appears in the snapshot"
     for service in payload["services"]:
         for component in service["components"]:
-            assert component["image"] is not None or component["provider"] == "systemd"
+            if component["provider"] == "docker":
+                assert component["image"], "docker components must carry an image"
 
 
 def test_security_headers_present(client) -> None:

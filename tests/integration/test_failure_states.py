@@ -79,6 +79,7 @@ def _assert_unavailable(client: TestClient) -> None:
     assert ready.json()["error"]["code"] == "SNAPSHOT_UNAVAILABLE"
     snapshot = client.get("/api/v1/snapshot", headers={"X-Authentik-Username": "owner"})
     assert snapshot.status_code == 503
+    assert snapshot.json()["error"]["code"] == "SNAPSHOT_UNAVAILABLE"
 
 
 def test_missing_catalog_keeps_health_up_but_not_ready(tmp_path) -> None:
@@ -130,3 +131,21 @@ def test_provider_unavailable_keeps_health_up_but_not_ready(monkeypatch) -> None
         create_app(settings=_settings(FIXTURES / "fixture-services.yaml"))
     ) as client:
         _assert_unavailable(client)
+
+
+def test_provider_unavailable_logs_report_unavailable(monkeypatch) -> None:
+    # t3-code is a systemd source: the unit name is the reference, so the
+    # gateway reaches read_logs directly and the broken provider surfaces
+    # as a bounded LOG_SOURCE_UNAVAILABLE (docker references cannot resolve
+    # at all without a published snapshot, so systemd is the path that
+    # exercises the provider boundary).
+    monkeypatch.setattr(main_module, "_build_runtime_provider", lambda settings: BrokenRuntime())
+    with TestClient(
+        create_app(settings=_settings(FIXTURES / "fixture-services.yaml"))
+    ) as client:
+        response = client.get(
+            "/api/v1/services/t3-code/logs?tail=50",
+            headers={"X-Authentik-Username": "owner"},
+        )
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "LOG_SOURCE_UNAVAILABLE"
