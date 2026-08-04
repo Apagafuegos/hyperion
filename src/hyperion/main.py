@@ -125,10 +125,11 @@ def _resolve_log_references(
 ) -> Callable[[], dict[tuple[str, str], str]]:
     """Resolver for docker container references from the latest snapshot.
 
-    The gateway reads references at request time so bindings always reflect
-    the current container state; before the first cycle publishes, the map is
-    empty and docker reads fail as LOG_SOURCE_UNAVAILABLE. Systemd units are
-    not mapped: the unit name is the selector.
+    The gateway reads references at request time so bindings reflect the
+    most recently published container state (up to ~15s stale); before the
+    first cycle publishes, the map is empty and docker reads fail as
+    LOG_SOURCE_UNAVAILABLE. Systemd units are not mapped: the unit name is
+    the selector.
     """
 
     def resolve() -> dict[tuple[str, str], str]:

@@ -78,3 +78,30 @@ async def test_docker_without_resolved_reference_raises_unavailable() -> None:
     assert exc.value.code == "LOG_SOURCE_UNAVAILABLE"
     assert exc.value.retryable is True
     assert runtime.bindings == []
+
+
+async def test_resolve_references_builds_map_from_snapshot_store() -> None:
+    from hyperion.main import _resolve_log_references
+    from hyperion.providers.fixture import FixtureProbeProvider, FixtureRuntimeProvider
+    from hyperion.services.reconciler import reconcile
+    from hyperion.services.snapshots import SnapshotStore
+
+    catalog = load_catalog(FIXTURES / "fixture-services.yaml")
+    runtime = FixtureRuntimeProvider(
+        FIXTURES / "fixture-evidence.json", FIXTURES / "fixture-logs.json"
+    )
+    probe = FixtureProbeProvider(FIXTURES / "fixture-probes.json")
+    store = SnapshotStore()
+    urls = tuple(s.route_probe.url for s in catalog.services if s.route_probe is not None)
+    store.publish(
+        reconcile(
+            catalog,
+            await runtime.observe(catalog),
+            await probe.observe(urls),
+        )
+    )
+    references = _resolve_log_references(store)()
+    assert references[("authentik", "server")] == "authentik-server-1"
+    assert references[("authentik", "worker")] == "authentik-worker-1"
+    assert ("t3-code", "t3code.service") not in references
+    assert all(key[0] != "t3-code" for key in references)

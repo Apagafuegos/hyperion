@@ -18,6 +18,9 @@ from ..api.errors import ApiError
 from ..models import Catalog, LogRecord, LogsResponse
 from ..providers.base import LogBinding, LogRecordIn, RuntimeProvider
 
+# Aware sentinel for log sorting: sorts last and never mixes naive/aware datetimes.
+_SENTINEL = datetime(9999, 12, 31, 23, 59, 59, tzinfo=UTC)
+
 
 class LogGateway:
     def __init__(
@@ -45,6 +48,8 @@ class LogGateway:
 
         references = self._resolve_references()
         records: list[LogRecord] = []
+        # One unresolvable source fails the whole request: the error envelope
+        # is single, and silently skipping sources would drop data.
         for name in requested:
             component = next(
                 (c for c in service.runtime.components if c.selector == name), None
@@ -85,8 +90,11 @@ class LogGateway:
                 ) from exc
             records.extend(_normalize(fetched))
 
+        # Entries without a timestamp sort after timestamped entries (the
+        # first tuple element short-circuits, so naive/aware never mix);
+        # stable sort preserves provider order within equal keys.
         records.sort(
-            key=lambda record: (record.timestamp is not None, record.timestamp or datetime.min)
+            key=lambda record: (record.timestamp is None, record.timestamp or _SENTINEL)
         )
         if len(records) > tail:
             records = records[-tail:]
