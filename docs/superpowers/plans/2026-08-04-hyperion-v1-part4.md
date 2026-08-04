@@ -375,7 +375,7 @@ git commit -m "test: security boundary and material failure states"
 **Files:**
 - Create: `.github/workflows/ci.yml`
 
-- [ ] **Step 1: Write the CI workflow**
+- [x] **Step 1: Write the CI workflow** (committed in 0b2c0af; `actions/setup-node@v4` with Node 22 added to honor `engines`)
 
 `.github/workflows/ci.yml`:
 
@@ -420,7 +420,7 @@ jobs:
 
 Note: the contract-parity tests run inside `pytest`; a divergence between generated and committed schemas fails CI.
 
-- [ ] **Step 2: Run the full acceptance checklist (Section 16.2)**
+- [x] **Step 2: Run the full acceptance checklist (Section 16.2)**
 
 Run everything and record results against each criterion:
 
@@ -449,7 +449,11 @@ Checklist (from TECHNICAL-DESIGN.md §16.2 — every item must pass):
 
 **Execution results (Task 3.4, 2026-08-04):** all gates green — `uv run pytest -q` (171 passed), `uv run ruff check src tests` (clean), `uv run mypy src` (clean), `npm run lint` (clean), `npm test` (13 passed), `npm run build` (ok), `npx playwright test` (26 passed). Live §16.2 checks: catalog loads via `load_catalog`; live snapshot 8/8 services resolved, zero `missing`/`unknown`, `diagnostics.unmappedRuntimes` = docker-proxy only; t3-code systemd component `running`/`healthy` with 50 journald records; langfuse (5 components) and authentik (3 components) docker states correct with allowlisted bounded logs (`tail` restricted to 50/100/250/500, other values 422); catalog action URLs match the six Caddyfile hosts (t3/auth/ai/rare/langfuse/mcp); `test_state_rules.py` 32 passed; live outage (docker-proxy stopped 25s): snapshot kept serving HTTP 200 with `fresh: false`, docker provider `unavailable`, 7 docker-backed services `unknown` while systemd-backed t3-code stayed `reachable`; recovery within ~25s of restart (all 8 `reachable`, `fresh: true`); `test_security.py` 7 passed and live snapshot grep found no env values, credentials, raw inspect keys, or keys; Docker POST `/containers/create` denied with HTTP 403 (verified against the live proxy on 127.0.0.1:2375) while read GETs return 200; visual comparison found one drift — the desktop `.atlas-frame` grid auto-placed `.latitudes` into row 2 (bands rendered below the fold, first band at y≈795); fixed by pinning `.latitudes`/`.bearings-rail` to `grid-row: 1` in `frontend/atlas.css`; after rebuild the first band sits at y≈203 and the bearings rail aligns with the bands; browser suite re-run 26/26 pass; clean-install (`rm -rf .venv node_modules` → `uv sync --frozen && npm ci && npm run build && uv run pytest -q && npm test`) all green.
 
-- [ ] **Step 3: Visual comparison against the approved prototype**
+Residual gap: provider-loss behavior for the **systemd** provider was drill-tested only via fixtures, not live — t3-code survived the docker-outage drill by design (its state comes from systemd, not docker), and stopping the live hyperion service itself would have taken down the atlas under test.
+
+- [x] **Step 3: Visual comparison against the approved prototype**
+
+Completed via DOM-geometry + computed-style + region-pixel comparison of the prototype (`index.html`) vs the fixture-mode atlas at 1440px, 390px, and reduced-motion; one drift found and fixed (`.latitudes`/`.bearings-rail` pinned to `grid-row: 1`, commit 0b2c0af); post-fix screenshots in `/tmp/opencode/hyperion-shots/` (ephemeral). A strict pixel diff against `.impeccable/mocks/02-latitude-bands.png` was not performed — the comp is illustrative, so the structural commitments (header/search/nav, band borders `rgb(40,40,36)`, dividers `rgb(206,196,178)`, status palette, 4-col dossier, bearings rail at x=1240/w=178, 26px logs drawer gap, mobile strip + stacked bands + single-col dossier, 10µs reduced-motion transitions) were verified programmatically instead. The approved design documents (DESIGN.md, PRODUCT.md, index.html, .impeccable/) are committed so a fresh clone can reproduce the visual contract.
 
 1. Run fixture mode with the built client: `HYPERION_FIXTURE_MODE=1 HYPERION_CATALOG_PATH=tests/fixtures/fixture-services.yaml uv run uvicorn hyperion.main:app --host 127.0.0.1 --port 8787 --workers 1`.
 2. Open `http://127.0.0.1:8787` with the identity header (or run `npx playwright open` with the test config).
@@ -462,9 +466,9 @@ Checklist (from TECHNICAL-DESIGN.md §16.2 — every item must pass):
    - Reduced motion: effectively instant.
 4. Apply ONE bounded correction pass if any drift is found (adjust `frontend/atlas.css`/`atlas.ts`, rebuild, re-run the browser suite). Do not change the approved topology into a card grid.
 
-- [ ] **Step 4: Clean install verification**
+- [x] **Step 4: Clean install verification**
 
-From a fresh clone (or fresh `rm -rf .venv node_modules`):
+From a fresh clone (or fresh `rm -rf .venv node_modules`) — executed in Task 3.4, all green (recorded in the execution results above):
 
 ```bash
 uv sync --frozen && npm ci && npm run build && uv run pytest -q && npm test
@@ -472,7 +476,9 @@ uv sync --frozen && npm ci && npm run build && uv run pytest -q && npm test
 
 Expected: everything green from lockfiles alone.
 
-- [ ] **Step 5: Final commit**
+- [x] **Step 5: Final commit**
+
+Executed in commit 0b2c0af (extended message `ci: full pipeline with contract parity and browser verification; accept hyperion v1`):
 
 ```bash
 git add .github/workflows/ci.yml

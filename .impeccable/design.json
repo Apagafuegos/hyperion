@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-03T20:25:52Z",
+  "title": "Design System: Hyperion",
+  "extensions": {
+    "colorMeta": {
+      "mineral-canvas": { "role": "neutral", "displayName": "Mineral Canvas", "canonical": "#F4F0E6", "tonalRamp": ["#292720", "#4A473D", "#6F6A5D", "#979083", "#BDB6A8", "#D9D3C7", "#EEE9DF", "#F9F6EF"] },
+      "parchment-surface": { "role": "neutral", "displayName": "Parchment Surface", "canonical": "#FBF8F0", "tonalRamp": ["#292722", "#4B4840", "#706C63", "#989289", "#BFB9B0", "#DDD8CF", "#F1EDE5", "#FCFAF5"] },
+      "limestone-field": { "role": "neutral", "displayName": "Limestone Field", "canonical": "#E4DDCF" },
+      "weathered-rule": { "role": "neutral", "displayName": "Weathered Rule", "canonical": "#CEC4B2" },
+      "carbon-ink": { "role": "neutral", "displayName": "Carbon Ink", "canonical": "#282824", "tonalRamp": ["#1D1D1A", "#343430", "#50504B", "#70706A", "#93938C", "#B9B9B2", "#DEDED8", "#F4F4EF"] },
+      "graphite-copy": { "role": "neutral", "displayName": "Graphite Copy", "canonical": "#615F57" },
+      "bearing-brass": { "role": "primary", "displayName": "Bearing Brass", "canonical": "#876721", "tonalRamp": ["#2D220B", "#4A370E", "#684D13", "#876721", "#A7843C", "#C4A663", "#E1CA97", "#F5EBCB"] },
+      "engraved-brass": { "role": "primary", "displayName": "Engraved Brass", "canonical": "#705317" },
+      "route-wash": { "role": "primary", "displayName": "Route Wash", "canonical": "#EBE0BE" },
+      "reachable-green": { "role": "secondary", "displayName": "Reachable Green", "canonical": "#4F6B54", "tonalRamp": ["#19251B", "#2A3D2E", "#3B5541", "#4F6B54", "#718975", "#98AA9A", "#C4D0C3", "#E8EFE7"] },
+      "reachable-wash": { "role": "secondary", "displayName": "Reachable Wash", "canonical": "#E4ECE2" },
+      "caution-ochre": { "role": "secondary", "displayName": "Caution Ochre", "canonical": "#8A5D16", "tonalRamp": ["#2E1D06", "#4B3008", "#69440D", "#8A5D16", "#AA7B30", "#C79E5B", "#E3C58E", "#F5E8C8"] },
+      "caution-wash": { "role": "secondary", "displayName": "Caution Wash", "canonical": "#F3E8CE" },
+      "failure-red": { "role": "secondary", "displayName": "Failure Red", "canonical": "#9B433B", "tonalRamp": ["#321311", "#53201D", "#762F2A", "#9B433B", "#B7635B", "#CF8982", "#E5B4AF", "#F5DDD9"] },
+      "failure-wash": { "role": "secondary", "displayName": "Failure Wash", "canonical": "#F2DFDB" },
+      "dormant-stone": { "role": "secondary", "displayName": "Dormant Stone", "canonical": "#65665F" },
+      "dormant-wash": { "role": "secondary", "displayName": "Dormant Wash", "canonical": "#E8E6E0" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Workspace Statement", "purpose": "The compact first-viewport sentence; never a marketing-scale hero." },
+      "headline": { "displayName": "Brand Title", "purpose": "Hyperion identity in the sticky header." },
+      "title": { "displayName": "Service Title", "purpose": "Primary route identity at the upper edge of the dense supporting scale." },
+      "body": { "displayName": "Atlas Reading", "purpose": "Dense route metadata, definitions, notes, and supporting copy." },
+      "label": { "displayName": "Operational Label", "purpose": "Status, dossier headings, control text, and bearing labels." },
+      "instrument": { "displayName": "Instrument Reading", "purpose": "Coordinates, endpoints, timestamps, shortcut keys, and logs." }
+    },
+    "shadows": [
+      { "name": "toast-lift", "value": "0 8px 30px rgba(40, 40, 36, .18)", "purpose": "The only shipped elevation; reserved for the fixed transient toast." }
+    ],
+    "motion": [
+      { "name": "route-settle", "value": "380ms cubic-bezier(.16, 1, .3, 1)", "purpose": "Clip-and-settle reveal for the inline selected-service dossier." },
+      { "name": "route-turn", "value": "240ms cubic-bezier(.16, 1, .3, 1)", "purpose": "Chevron, disclosure, and directional state changes." },
+      { "name": "state-change", "value": "180ms ease-out", "purpose": "Toast and direct control state changes." },
+      { "name": "reduced-motion", "value": ".01ms", "purpose": "Effectively instant animation and transition duration when reduced motion is requested." }
+    ],
+    "breakpoints": [
+      { "name": "compact-desktop", "value": "1180px" },
+      { "name": "tablet", "value": "900px" },
+      { "name": "phone", "value": "620px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Atlas Search",
+      "kind": "input",
+      "refersTo": "field-search",
+      "description": "The broad header field that immediately filters names, environments, and endpoints.",
+      "html": "<label class=\"global-search\"><span aria-hidden=\"true\">⌕</span><input type=\"search\" placeholder=\"Find services, environments, endpoints…\"><kbd class=\"search-key\">⌘ K</kbd></label>",
+      "css": ".global-search{position:relative;display:flex;align-items:center;width:100%;font-family:Geologica,sans-serif}.global-search>span{position:absolute;left:14px;color:#615F57}.global-search input{box-sizing:border-box;width:100%;min-height:42px;padding:0 54px 0 44px;border:1px solid #CEC4B2;border-radius:13px;background:#FBF8F0;color:#282824;font-size:.82rem}.global-search input:focus{border-color:#705317;outline:3px solid color-mix(in srgb,#876721 32%,transparent);outline-offset:1px}.search-key{position:absolute;right:10px;padding:3px 6px;border:1px solid #CEC4B2;border-radius:5px;color:#615F57;font:400 .65rem Recursive,monospace}"
+    },
+    {
+      "name": "Service Route",
+      "kind": "custom",
+      "refersTo": "button-route",
+      "description": "A dense horizontal service record combining identity, state, recency, and direct access.",
+      "html": "<div class=\"service-row selected\"><button class=\"service-select\"><span class=\"chevron\">›</span><i class=\"route-dot\"></i><span><strong class=\"service-name\">Atlas API</strong><small class=\"service-description\">Public service gateway</small></span></button><code class=\"cell\">api.example.test</code><span class=\"status\">Online</span><span class=\"cell\">just now</span><button class=\"open-action\">Open ↗</button></div>",
+      "css": ".service-row{--status-color:#4F6B54;display:grid;grid-template-columns:minmax(220px,1.4fr) .55fr .7fr .55fr 116px;align-items:center;min-height:48px;border-bottom:1px solid #CEC4B2;background:transparent;color:#282824;font-family:Geologica,sans-serif}.service-row.selected{background:color-mix(in srgb,#EBE0BE 62%,transparent)}.service-select{display:flex;align-items:center;gap:10px;min-width:0;align-self:stretch;padding:7px 14px;border:0;background:transparent;color:#282824;text-align:left}.chevron{font-size:1rem}.route-dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--status-color)}.service-name{display:block;font:620 .85rem Recursive,sans-serif;letter-spacing:-.018em}.service-description{display:block;margin-top:2px;color:#615F57;font-size:.64rem}.cell{padding:0 10px;color:#615F57;font-size:.67rem}.status{justify-self:start;padding:4px 7px;border-radius:999px;background:#E4ECE2;color:#4F6B54;font-size:.64rem;font-weight:650}.open-action{min-height:31px;margin-right:10px;padding:0 10px;border:1px solid #CEC4B2;border-radius:8px;background:#FBF8F0;color:#282824;font-size:.65rem;font-weight:600}"
+    },
+    {
+      "name": "Selected Service Dossier",
+      "kind": "custom",
+      "refersTo": "dossier",
+      "description": "Inline operational depth inserted into the selected route without changing atlas topology.",
+      "html": "<div class=\"service-detail\"><section><h3>Service dossier</h3><dl><dt>Owner</dt><dd>Platform</dd><dt>Endpoint</dt><dd>api.example.test</dd></dl><button class=\"detail-route\">Open service ↗</button></section><section><h3>Health overview</h3><strong class=\"health-value\">99.9%</strong></section><section><h3>Dependencies</h3><p>● Auth relay</p></section><section><h3>Recent events</h3><p>● Health check passed</p></section></div>",
+      "css": ".service-detail{display:grid;grid-template-columns:.86fr 1.15fr .8fr 1fr;margin:0 14px 14px 46px;border:1px solid #CEC4B2;border-radius:13px;background:#FBF8F0;color:#282824;font-family:Geologica,sans-serif;overflow:hidden}.service-detail section{min-width:0;padding:16px}.service-detail section+section{border-left:1px solid #CEC4B2}.service-detail h3{margin:0 0 13px;color:#615F57;font-size:.62rem;font-weight:650}.service-detail dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;margin:0;font-size:.65rem}.service-detail dd{margin:0}.health-value{font:590 1.28rem Recursive,sans-serif}.detail-route{width:100%;min-height:35px;margin-top:14px;border:1px solid #876721;border-radius:8px;background:#876721;color:#FBF8F0;font-size:.67rem;font-weight:650}"
+    },
+    {
+      "name": "Reachable Status",
+      "kind": "chip",
+      "refersTo": "status-reachable",
+      "description": "Text plus a pigment-matched point keeps service state readable without relying on color alone.",
+      "html": "<span class=\"status\">Online</span>",
+      "css": ".status{display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:4px 7px;border-radius:999px;background:#E4ECE2;color:#4F6B54;font:650 .64rem Geologica,sans-serif}.status::before{content:\"\";width:5px;height:5px;border-radius:50%;background:currentColor}"
+    },
+    {
+      "name": "Primary Open Route",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The strongest action in the selected dossier.",
+      "html": "<button class=\"detail-route\">Open service ↗</button>",
+      "css": ".detail-route{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:35px;margin-top:14px;border:1px solid #876721;border-radius:8px;background:#876721;color:#FBF8F0;cursor:pointer;font:650 .67rem Geologica,sans-serif}.detail-route:hover{background:#705317}.detail-route:focus-visible{outline:3px solid #876721;outline-offset:3px}"
+    },
+    {
+      "name": "Logs Drawer",
+      "kind": "custom",
+      "description": "A native, closed-by-default disclosure for tertiary operational context.",
+      "html": "<details class=\"log-drawer\"><summary><strong>Logs</strong><span class=\"log-count\">5</span><small>Recent events across the illustrative atlas</small><span class=\"open-label\">Open drawer</span></summary><div class=\"log-row\"><time>12:41:18</time><b class=\"log-level\">INFO</b><span>Atlas API health check passed</span><code>atlas-api</code></div></details>",
+      "css": ".log-drawer{margin-top:26px;border:1px solid #CEC4B2;border-radius:13px;background:#FBF8F0;color:#282824;font-family:Geologica,sans-serif}.log-drawer summary{display:flex;align-items:center;min-height:56px;padding:0 18px;cursor:pointer}.log-drawer summary strong{font:620 .82rem Recursive,sans-serif}.log-drawer summary small{margin-left:20px;color:#615F57;font-size:.66rem}.open-label{margin-left:auto;color:#705317;font-size:.65rem}.log-count{margin-left:9px;padding:3px 6px;border:1px solid #CEC4B2;border-radius:5px;color:#615F57;font:400 .58rem Recursive,monospace}.log-row{display:grid;grid-template-columns:76px 64px 1fr 140px;gap:14px;padding:11px 18px;border-top:1px solid #CEC4B2;font:400 .64rem Recursive,monospace}.log-level{width:fit-content;padding:2px 5px;border-radius:4px;background:#E4ECE2;color:#4F6B54;font-size:.56rem}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Service Atlas — Latitude Bands",
+    "overview": "Hyperion renders one owner's deployed world as a compact latitude atlas: horizontal Applications, Services, and Foundations territories hold service routes, an inline dossier appears only for the selected route, a narrow bearings rail summarizes state, and logs remain closed until requested. Warm mineral fields and carbon type do the daily work; rare brass marks identity, focus, selection, and direct routes.",
+    "keyCharacteristics": [
+      "Horizontal latitude bands, coordinate margins, and shared cartographic rules instead of a card grid.",
+      "Dense .56rem–.85rem supporting type with a compact Recursive statement scale.",
+      "Intentional 4px, 5px, 8px, and 13px micro-to-control radii.",
+      "Rare brass for orientation and action; independent pigments for service state.",
+      "Dossiers and logs provide operational depth on demand."
+    ],
+    "rules": [
+      { "name": "The Rare Metal Rule", "body": "Brass never indicates health and should occupy less than ten percent of a screen. Its rarity makes orientation and selection immediate.", "section": "colors" },
+      { "name": "The Dense Instrument Rule", "body": "Supporting type intentionally lives between .56rem and .85rem; essential actions and service names occupy the upper end while tertiary telemetry occupies the lower end.", "section": "typography" },
+      { "name": "The Instrument-Only Mono Rule", "body": "Monospace styling belongs to endpoints, timestamps, coordinates, shortcut keys, and logs—never general navigation or decorative labels.", "section": "typography" },
+      { "name": "The Cartographic Layer Rule", "body": "Use tone and seams to explain hierarchy at rest. Shadow means an element has actually lifted above the atlas.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do preserve the find, read state, open service sequence; reveal dossiers and logs only on demand.",
+      "Do keep direct service access visually ahead of logs, health traces, and diagnostics.",
+      "Do use shared horizontal bands, plotted rules, coordinates, and alignment to make the deployed world feel mapped.",
+      "Do preserve the .56rem–.85rem supporting scale and 4/5/8/13px radius ladder as intentional density choices.",
+      "Do retain text labels, visible brass focus, and reduced-motion behavior alongside visual cues."
+    ],
+    "donts": [
+      "Don't turn the latitude bands into an interchangeable rounded-card grid or a monitoring wall.",
+      "Don't use Greek letters, blue Mediterranean palettes, columns, laurels, amphorae, or temple silhouettes.",
+      "Don't make gold a background treatment, a health state, or a decorative glow.",
+      "Don't enlarge every supporting label into ordinary body copy and erase the atlas's instrument hierarchy.",
+      "Don't add decorative shadow to static surfaces or let logs compete with the primary route-opening workflow."
+    ]
+  }
+}

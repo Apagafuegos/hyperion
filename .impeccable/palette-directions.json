@@ -1,0 +1,72 @@
+{
+  "title": "Choose Hyperion's palette world",
+  "question": "Which material language should turn warm ivory and restrained gold into a working service hub?",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "The Service Atlas",
+      "kicker": "RECOMMENDED DIRECTION",
+      "lineage": "surveyor field atlases, engraved wayfinding, and brass map pins",
+      "thesis": "Hyperion becomes a calm map of the deployed world, with gold reserved for bearings and chosen routes.",
+      "palette": ["#F4F0E6", "#E4DDCF", "#282824", "#8A6A24", "#4F6B54"],
+      "materials": ["warm mineral paper", "aged brass", "carbon ink"],
+      "viewport": "A compact service index reads like an owned atlas: direct links lead, health marks the margin, and logs sit one layer deeper.",
+      "risk": "Too much cartographic ornament would slow the quick-access job, so the map language must live in rules, labels, and states.",
+      "sketch": ".impeccable/sketches/service-atlas.webp"
+    },
+    {
+      "id": "challenger-specimen",
+      "label": "The Living Index",
+      "lineage": "variable-type specimens and type foundry proof sheets",
+      "thesis": "Every service is recognized by a bold typographic signature inside an unusually quiet working index.",
+      "case": "Strong personal recognition and excellent scanability; less naturally expresses relationships between services than the atlas.",
+      "palette": ["#F6F2E9", "#DED7C9", "#22221F", "#9A772A", "#6D6A62"],
+      "materials": ["proofing paper", "ink", "one foundry-gold accent"],
+      "viewport": "Large service initials anchor a disciplined list while tiny technical labels carry state, endpoint, and log access.",
+      "risk": "The oversized lettering could feel editorial rather than operational if names vary wildly in length.",
+      "sketch": ".impeccable/sketches/living-index.webp",
+      "hero": "https://impeccable.style/worlds/cards/variable-font-specimen-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/variable-font-specimen.webp"
+    },
+    {
+      "id": "challenger-grid",
+      "label": "The Signal Grid",
+      "lineage": "man-machine diagrams and strict traffic-control schematics",
+      "thesis": "Services become nodes on a precise routing grid whose connections illuminate only when needed.",
+      "case": "Best expression of a future communication hub, but its signal-red identity fights the requested ivory-and-gold restraint.",
+      "palette": ["#F2EFE5", "#272824", "#B54335", "#A37D27", "#56705A"],
+      "materials": ["matte enamel", "printed wiring rules", "signal lamps"],
+      "viewport": "A compact orthogonal network keeps every service link in a fixed place and lights the selected route through the system.",
+      "risk": "It can become visually busy and make the product look like a topology tool rather than a fast personal launcher.",
+      "sketch": ".impeccable/sketches/signal-grid.webp",
+      "hero": "https://impeccable.style/worlds/cards/kraftwerk-man-machine-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/kraftwerk-man-machine.webp"
+    },
+    {
+      "id": "challenger-segment",
+      "label": "The Status Instrument",
+      "lineage": "seven-segment instruments and designed unlit display cells",
+      "thesis": "Availability is rendered as an unmistakable instrument reading, with inactive states designed as carefully as active ones.",
+      "case": "Instant status recognition is excellent; the dark instrument character and numeric bias fit the product less well.",
+      "palette": ["#252621", "#EEE9DC", "#B7892D", "#B34A3F", "#5F7659"],
+      "materials": ["matte instrument face", "ghosted cells", "amber illumination"],
+      "viewport": "Each service occupies a fixed instrument slot where state changes in place and the direct-access label remains stable.",
+      "risk": "It overemphasizes monitoring even though opening services—not watching metrics—is Hyperion's primary job.",
+      "sketch": ".impeccable/sketches/status-instrument.webp",
+      "hero": "https://impeccable.style/worlds/cards/signals-instruments-seven-segment-alarm-clock-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/signals-instruments-seven-segment-alarm-clock.webp"
+    }
+  ],
+  "reroll": true,
+  "canon": true,
+  "canonCard": {
+    "label": "The polished dashboard standard",
+    "thesis": "A familiar neutral admin dashboard with conventional cards and a muted gold brand accent.",
+    "palette": ["#FAF8F3", "#E8E5DE", "#242522", "#9B792D", "#54715A"],
+    "materials": ["flat UI surfaces", "soft borders", "standard status badges"],
+    "viewport": "A sidebar and card grid expose service name, status, direct link, and log action in the expected arrangement.",
+    "risk": "Efficient and familiar, but it leaves Hyperion with little identity beyond its accent color.",
+    "sketch": ".impeccable/sketches/canon-dashboard.webp"
+  },
+  "steer": true
+}

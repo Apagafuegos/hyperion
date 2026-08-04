@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#F4F0E6" />
+    <title>Hyperion — Service Atlas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geologica:wght@400;500;600;650&family=Recursive:slnt,wght@-15..0,400..700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        font-family: "Geologica", sans-serif;
+        color-scheme: light;
+        --canvas: #f4f0e6;
+        --surface: #fbf8f0;
+        --field: #e4ddcf;
+        --line: #cec4b2;
+        --ink: #282824;
+        --muted: #615f57;
+        --brass: #876721;
+        --brass-dark: #705317;
+        --route-wash: #ebe0be;
+        --up: #4f6b54;
+        --up-wash: #e4ece2;
+        --slow: #8a5d16;
+        --slow-wash: #f3e8ce;
+        --down: #9b433b;
+        --down-wash: #f2dfdb;
+        --paused: #65665f;
+        --paused-wash: #e8e6e0;
+        --radius: 13px;
+        --ease-route: cubic-bezier(.16, 1, .3, 1);
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        background: var(--canvas);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button, input { font: inherit; }
+      button, a { -webkit-tap-highlight-color: transparent; }
+
+      button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible {
+        outline: 3px solid var(--brass);
+        outline-offset: 3px;
+      }
+
+      svg { display: block; }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+      .app-header {
+        position: sticky;
+        z-index: 20;
+        top: 0;
+        display: grid;
+        grid-template-columns: 260px minmax(260px, 620px) 1fr;
+        align-items: center;
+        min-height: 70px;
+        border-bottom: 1px solid var(--line);
+        background: color-mix(in srgb, var(--canvas) 94%, transparent);
+        backdrop-filter: blur(12px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        height: 100%;
+        padding: 0 28px;
+        color: var(--ink);
+        text-decoration: none;
+      }
+
+      .brand-mark { width: 32px; height: 32px; color: var(--brass); }
+      .brand-name { font-family: "Recursive", sans-serif; font-size: 1.28rem; font-weight: 630; letter-spacing: -0.035em; }
+
+      .global-search {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+      }
+
+      .global-search > .icon { position: absolute; left: 14px; color: var(--muted); pointer-events: none; }
+
+      .global-search input {
+        width: 100%;
+        min-height: 42px;
+        padding: 0 54px 0 44px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--ink);
+        font-size: .82rem;
+      }
+
+      .global-search input::placeholder { color: var(--muted); opacity: 1; }
+      .global-search input:hover { border-color: color-mix(in srgb, var(--line) 50%, var(--brass)); }
+      .global-search input:focus { border-color: var(--brass-dark); outline: 3px solid color-mix(in srgb, var(--brass) 32%, transparent); outline-offset: 1px; }
+
+      .search-key {
+        position: absolute;
+        right: 10px;
+        padding: 3px 6px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        color: var(--muted);
+        font-family: "Recursive", monospace;
+        font-size: .65rem;
+        pointer-events: none;
+      }
+
+      .primary-nav {
+        display: flex;
+        justify-content: flex-end;
+        align-self: stretch;
+        gap: 4px;
+        padding: 0 24px;
+      }
+
+      .nav-link {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 0 16px;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: .8rem;
+      }
+
+      .nav-link::after {
+        content: "";
+        position: absolute;
+        right: 16px;
+        bottom: -1px;
+        left: 16px;
+        height: 2px;
+        background: transparent;
+      }
+
+      .nav-link:hover { color: var(--ink); }
+      .nav-link.active { color: var(--brass-dark); }
+      .nav-link.active::after { background: var(--brass); }
+
+      .page {
+        width: min(1540px, calc(100% - 44px));
+        margin: 0 auto;
+        padding: 30px 0 44px;
+      }
+
+      .page-intro {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: "Recursive", sans-serif;
+        font-size: clamp(1.65rem, 3vw, 2.55rem);
+        font-weight: 560;
+        font-variation-settings: "CASL" .28;
+        letter-spacing: -.04em;
+        line-height: 1.05;
+      }
+
+      .intro-meta { display: flex; align-items: center; gap: 12px; }
+
+      .illustrative {
+        padding: 6px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: .66rem;
+        white-space: nowrap;
+      }
+
+      .last-updated { color: var(--muted); font-family: "Recursive", monospace; font-size: .68rem; }
+
+      .atlas-frame {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 178px;
+        border-top: 1px solid var(--ink);
+        border-bottom: 1px solid var(--ink);
+      }
+
+      .band-stack { min-width: 0; border-right: 1px solid var(--line); }
+
+      .territory-band {
+        display: grid;
+        grid-template-columns: 182px minmax(0, 1fr);
+        min-height: 142px;
+        border-bottom: 1px solid var(--ink);
+        scroll-margin-top: 90px;
+      }
+
+      .territory-band:last-child { border-bottom: 0; }
+
+      .territory-label {
+        position: relative;
+        padding: 21px 22px 20px 30px;
+        border-right: 1px solid var(--line);
+      }
+
+      .territory-label::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 12px;
+        border-left: 1px dotted var(--line);
+      }
+
+      .territory-label::after {
+        content: "";
+        position: absolute;
+        top: 28px;
+        left: 7px;
+        width: 11px;
+        height: 11px;
+        border: 1px solid var(--brass);
+        border-radius: 50%;
+        background: var(--canvas);
+      }
+
+      .coordinate { display: block; margin-bottom: 13px; color: var(--muted); font-family: "Recursive", monospace; font-size: .62rem; }
+      .territory-label h2 { margin: 0; font-family: "Recursive", sans-serif; font-size: 1.08rem; font-weight: 590; letter-spacing: -.02em; }
+      .territory-label p { margin: 5px 0 0; color: var(--muted); font-size: .67rem; }
+
+      .territory-ticks {
+        position: absolute;
+        bottom: 17px;
+        left: 8px;
+        display: grid;
+        gap: 13px;
+      }
+
+      .territory-ticks i { display: block; width: 9px; border-top: 1px solid var(--line); }
+      .territory-ticks i:nth-child(2) { width: 14px; }
+
+      .services { min-width: 0; }
+
+      .service-row {
+        display: grid;
+        grid-template-columns: minmax(220px, 1.4fr) .55fr .7fr .55fr 116px;
+        align-items: center;
+        min-height: 48px;
+        border-bottom: 1px solid var(--line);
+        background: transparent;
+      }
+
+      .service-row:last-of-type { border-bottom: 0; }
+      .service-row:hover { background: color-mix(in srgb, var(--route-wash) 40%, transparent); }
+      .service-row.selected { background: color-mix(in srgb, var(--route-wash) 62%, transparent); }
+
+      .service-select {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        align-self: stretch;
+        padding: 7px 14px;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .chevron { width: 14px; height: 14px; flex: none; transition: transform 240ms var(--ease-route); }
+      .service-row.selected .chevron { transform: rotate(90deg); }
+
+      .route-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--status-color); }
+
+      .service-title { min-width: 0; }
+      .service-name { display: block; overflow: hidden; font-family: "Recursive", sans-serif; font-size: .85rem; font-weight: 620; letter-spacing: -.018em; text-overflow: ellipsis; white-space: nowrap; }
+      .service-description { display: block; overflow: hidden; margin-top: 2px; color: var(--muted); font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+
+      .cell { padding: 0 10px; color: var(--muted); font-size: .67rem; }
+      .endpoint { overflow: hidden; font-family: "Recursive", monospace; text-overflow: ellipsis; white-space: nowrap; }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        width: fit-content;
+        padding: 4px 7px;
+        border-radius: 999px;
+        background: var(--status-wash);
+        color: var(--status-color);
+        font-size: .64rem;
+        font-weight: 650;
+      }
+
+      .status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+      .open-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 31px;
+        margin-right: 10px;
+        padding: 0 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: .65rem;
+        font-weight: 600;
+      }
+
+      .open-action:hover { border-color: var(--brass); color: var(--brass-dark); }
+      .open-action .icon { width: 13px; height: 13px; }
+
+      .service-detail {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: .86fr 1.15fr .8fr 1fr;
+        gap: 0;
+        margin: 0 14px 14px 46px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        animation: route-settle 380ms var(--ease-route) both;
+        transform-origin: top;
+      }
+
+      @keyframes route-settle {
+        from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-5px); }
+        to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
+      }
+
+      .detail-section { min-width: 0; padding: 16px; }
+      .detail-section + .detail-section { border-left: 1px solid var(--line); }
+      .detail-section h3 { margin: 0 0 13px; color: var(--muted); font-size: .62rem; font-weight: 650; }
+
+      .definition-list { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; margin: 0; font-size: .65rem; }
+      .definition-list dt { color: var(--muted); }
+      .definition-list dd { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+
+      .health-value { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+      .health-value strong { font-family: "Recursive", sans-serif; font-size: 1.28rem; font-weight: 590; }
+      .health-value span { color: var(--muted); font-size: .61rem; }
+      .health-chart { width: 100%; height: 72px; overflow: visible; }
+      .health-chart .guide { stroke: var(--line); stroke-width: 1; }
+      .health-chart .area { fill: color-mix(in srgb, var(--up) 12%, transparent); }
+      .health-chart .trace { fill: none; stroke: var(--up); stroke-width: 2; vector-effect: non-scaling-stroke; }
+
+      .signal-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+      .signal-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .65rem; }
+      .signal-list span { display: flex; align-items: center; gap: 7px; min-width: 0; }
+      .signal-list i { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--up); }
+      .signal-list time, .signal-list small { color: var(--muted); font-family: "Recursive", monospace; font-size: .58rem; white-space: nowrap; }
+
+      .detail-route {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 35px;
+        margin-top: 14px;
+        border: 1px solid var(--brass);
+        border-radius: 8px;
+        background: var(--brass);
+        color: var(--surface);
+        cursor: pointer;
+        font-size: .67rem;
+        font-weight: 650;
+      }
+
+      .detail-route:hover { background: var(--brass-dark); }
+      .detail-route .icon { width: 14px; height: 14px; }
+
+      .empty-band {
+        display: none;
+        min-height: 88px;
+        place-items: center;
+        color: var(--muted);
+        font-size: .72rem;
+      }
+
+      .territory-band.empty .empty-band { display: grid; }
+
+      .bearings {
+        display: flex;
+        flex-direction: column;
+        scroll-margin-top: 90px;
+      }
+
+      .bearings-head { padding: 20px 18px 12px; }
+      .bearings-head h2 { margin: 0; font-size: .7rem; font-weight: 650; }
+      .bearings-head p { margin: 4px 0 0; color: var(--muted); font-size: .61rem; }
+
+      .bearing {
+        display: grid;
+        flex: 1;
+        place-items: center;
+        min-height: 132px;
+        padding: 13px 12px;
+        border-top: 1px solid var(--line);
+        text-align: center;
+      }
+
+      .bearing-glyph { position: relative; display: grid; place-items: center; width: 42px; height: 42px; margin: 0 auto 7px; color: var(--bearing-color); }
+      .bearing-glyph::before, .bearing-glyph::after { content: ""; position: absolute; background: currentColor; opacity: .55; }
+      .bearing-glyph::before { width: 52px; height: 1px; }
+      .bearing-glyph::after { width: 1px; height: 52px; }
+      .bearing-ring { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid currentColor; border-radius: 50%; }
+      .bearing-ring i { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+      .bearing strong { display: block; color: var(--bearing-color); font-family: "Recursive", sans-serif; font-size: 1.8rem; font-weight: 450; line-height: 1; }
+      .bearing span { display: block; margin-top: 6px; font-size: .64rem; font-weight: 650; }
+      .bearing small { display: block; margin-top: 4px; color: var(--muted); font-size: .58rem; }
+
+      .no-results {
+        display: none;
+        padding: 48px 24px;
+        border-bottom: 1px solid var(--line);
+        text-align: center;
+      }
+
+      .no-results.visible { display: block; }
+      .no-results h2 { margin: 0; font-family: "Recursive", sans-serif; font-size: 1.2rem; }
+      .no-results p { margin: 7px 0 0; color: var(--muted); font-size: .72rem; }
+
+      .log-drawer {
+        margin-top: 26px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        scroll-margin-top: 90px;
+      }
+
+      .log-drawer summary {
+        display: flex;
+        align-items: center;
+        min-height: 56px;
+        padding: 0 18px;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .log-drawer summary::-webkit-details-marker { display: none; }
+      .log-drawer summary .icon { margin-right: 12px; transition: transform 240ms var(--ease-route); }
+      .log-drawer[open] summary .icon { transform: rotate(180deg); }
+      .log-title { font-family: "Recursive", sans-serif; font-size: .82rem; font-weight: 620; }
+      .log-count { margin-left: 9px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-family: "Recursive", monospace; font-size: .58rem; }
+      .log-summary { margin-left: 20px; color: var(--muted); font-size: .66rem; }
+      .log-open-label { margin-left: auto; color: var(--brass-dark); font-size: .65rem; }
+
+      .log-content { border-top: 1px solid var(--line); }
+      .log-row { display: grid; grid-template-columns: 76px 64px 1fr 140px; gap: 14px; padding: 11px 18px; border-bottom: 1px solid var(--line); font-family: "Recursive", monospace; font-size: .64rem; }
+      .log-row:last-child { border-bottom: 0; }
+      .log-row time, .log-source { color: var(--muted); }
+      .log-level { width: fit-content; padding: 2px 5px; border-radius: 4px; background: var(--up-wash); color: var(--up); font-size: .56rem; font-weight: 650; }
+      .log-level.warn { background: var(--slow-wash); color: var(--slow); }
+
+      .toast {
+        position: fixed;
+        z-index: 50;
+        right: 20px;
+        bottom: 20px;
+        max-width: 360px;
+        padding: 13px 15px;
+        border-radius: var(--radius);
+        background: var(--ink);
+        color: var(--surface);
+        box-shadow: 0 8px 30px rgba(40, 40, 36, .18);
+        font-size: .72rem;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px);
+        transition: opacity 180ms ease-out, transform 180ms var(--ease-route);
+      }
+
+      .toast.visible { opacity: 1; transform: translateY(0); }
+
+      @media (max-width: 1180px) {
+        .app-header { grid-template-columns: 210px minmax(240px, 1fr) auto; }
+        .brand { padding: 0 20px; }
+        .primary-nav { padding: 0 10px; }
+        .nav-link { gap: 5px; padding: 0 9px; font-size: .7rem; }
+        .territory-band { grid-template-columns: 150px minmax(0, 1fr); }
+        .territory-label { padding-left: 26px; }
+        .service-row { grid-template-columns: minmax(200px, 1.3fr) .6fr .7fr 106px; }
+        .service-row > .endpoint { display: none; }
+        .service-detail { grid-template-columns: 1fr 1.2fr 1fr; }
+        .detail-section.events { display: none; }
+      }
+
+      @media (max-width: 900px) {
+        .app-header { grid-template-columns: auto minmax(180px, 1fr) auto; padding: 0 14px; gap: 12px; }
+        .brand { padding: 0; }
+        .primary-nav { padding: 0; }
+        .page { width: min(100% - 28px, 760px); }
+        .atlas-frame { grid-template-columns: 1fr; }
+        .band-stack { border-right: 0; }
+        .territory-band { grid-template-columns: 132px minmax(0, 1fr); }
+        .service-row { grid-template-columns: minmax(180px, 1fr) .72fr 42px; }
+        .service-row > .cell { display: none; }
+        .open-action { width: 32px; min-height: 32px; margin-right: 8px; padding: 0; border-radius: 50%; }
+        .open-action span { display: none; }
+        .service-detail { grid-template-columns: 1fr 1fr; margin-left: 14px; }
+        .detail-section:nth-child(3) { border-top: 1px solid var(--line); border-left: 0; }
+        .detail-section:nth-child(4) { border-top: 1px solid var(--line); }
+        .bearings { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--ink); }
+        .bearings-head { grid-column: 1 / -1; }
+        .bearing { min-height: 118px; border-right: 1px solid var(--line); }
+        .bearing:last-child { border-right: 0; }
+        .log-row { grid-template-columns: 68px 58px 1fr; }
+        .log-source { display: none; }
+      }
+
+      @media (max-width: 620px) {
+        .app-header { grid-template-columns: auto 1fr; min-height: 64px; }
+        .global-search { grid-column: 1 / -1; grid-row: 2; margin-bottom: 12px; }
+        .primary-nav { justify-self: end; gap: 0; }
+        .nav-link { gap: 4px; min-width: 44px; padding: 0 5px; font-size: .64rem; }
+        .nav-link .icon { width: 15px; height: 15px; }
+        .nav-link::after { right: 5px; left: 5px; }
+        .page { padding-top: 22px; }
+        .page-intro { align-items: flex-start; flex-direction: column; gap: 10px; }
+        .intro-meta { width: 100%; justify-content: space-between; }
+        .last-updated { display: none; }
+        .territory-band { grid-template-columns: 1fr; }
+        .territory-label { min-height: 96px; padding: 17px 18px 15px 34px; border-right: 0; border-bottom: 1px solid var(--line); }
+        .territory-label::after { top: 23px; }
+        .territory-ticks { right: 18px; bottom: 24px; left: auto; display: flex; }
+        .service-row { min-height: 58px; }
+        .service-select { padding-left: 12px; }
+        .service-description { max-width: 28ch; }
+        .service-detail { grid-template-columns: 1fr; margin: 0 10px 10px; }
+        .detail-section + .detail-section { border-top: 1px solid var(--line); border-left: 0; }
+        .detail-section:nth-child(2), .detail-section.dependencies, .detail-section.events { display: none; }
+        .bearings { grid-template-columns: repeat(2, 1fr); }
+        .bearing:nth-of-type(2) { border-right: 0; }
+        .bearing { min-height: 108px; }
+        .bearing-glyph { width: 32px; height: 32px; }
+        .bearing-glyph::before { width: 42px; }
+        .bearing-glyph::after { height: 42px; }
+        .bearing-ring { width: 28px; height: 28px; }
+        .bearing strong { font-size: 1.45rem; }
+        .log-summary { display: none; }
+        .log-row { grid-template-columns: 58px 1fr; gap: 9px; }
+        .log-level { display: none; }
+        .log-open-label { font-size: 0; }
+        .log-open-label::after { content: "Expand"; font-size: .65rem; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      THESIS: Hyperion is an owned atlas of deployed services, not a monitoring-wall card grid.
+      OWN-WORLD: Mineral ivory, carbon ink, rare bearing brass, status pigments, thin plotted rules, and banded territories.
+      STORY: Find a service, read its state, open it; expand the dossier or logs only when more context is needed.
+      FIRST VIEWPORT: Compact header and search above three horizontal service bands, with inline detail and a narrow bearings rail.
+      FORM: Latitude Bands, approved composition 2; direction seed d114a0ce.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+    -->
+
+    <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+      <symbol id="i-atlas" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.2 2.3 3.4 5.1 3.4 8.5S14.2 18.2 12 20.5C9.8 18.2 8.6 15.4 8.6 12S9.8 5.8 12 3.5Z"/></symbol>
+      <symbol id="i-bearing" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></symbol>
+      <symbol id="i-logs" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+      <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></symbol>
+      <symbol id="i-external" viewBox="0 0 24 24"><path d="M8 16 16 8M9 8h7v7"/><path d="M16 13v5H6V8h5"/></symbol>
+    </svg>
+
+    <header class="app-header">
+      <a class="brand" href="#atlas" aria-label="Hyperion service atlas">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="16" cy="16" r="10.5" fill="none" stroke="currentColor" stroke-width="1.4" />
+          <path d="M3 16h26M16 3v26M8.5 8.5l15 15M23.5 8.5l-15 15" fill="none" stroke="currentColor" stroke-width=".9" />
+          <circle cx="16" cy="16" r="2.6" fill="currentColor" />
+        </svg>
+        <span class="brand-name">Hyperion</span>
+      </a>
+
+      <label class="global-search">
+        <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
+        <span class="sr-only">Find a service</span>
+        <input id="service-search" type="search" autocomplete="off" placeholder="Find services, environments, endpoints…" aria-controls="service-atlas" />
+        <span class="search-key" aria-hidden="true">⌘ K</span>
+      </label>
+
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <button class="nav-link active" type="button" data-jump="atlas"><svg class="icon" aria-hidden="true"><use href="#i-atlas" /></svg><span>Atlas</span></button>
+        <button class="nav-link" type="button" data-jump="bearings"><svg class="icon" aria-hidden="true"><use href="#i-bearing" /></svg><span>Bearings</span></button>
+        <button class="nav-link" type="button" data-jump="logs"><svg class="icon" aria-hidden="true"><use href="#i-logs" /></svg><span>Logs</span></button>
+      </nav>
+    </header>
+
+    <main class="page" id="atlas">
+      <header class="page-intro">
+        <h1>Your deployed world, within reach.</h1>
+        <div class="intro-meta"><span class="illustrative">Illustrative service data</span><span class="last-updated">atlas synchronized just now</span></div>
+      </header>
+
+      <div class="atlas-frame" id="service-atlas">
+        <div class="band-stack" id="band-stack"></div>
+
+        <aside class="bearings" id="bearings" aria-labelledby="bearings-title">
+          <header class="bearings-head"><h2 id="bearings-title">Current bearings</h2><p>Service reachability</p></header>
+          <div id="bearing-list" style="display:contents"></div>
+        </aside>
+      </div>
+
+      <section class="no-results" id="no-results" aria-live="polite">
+        <h2>No route found</h2>
+        <p>Try a service name, environment, endpoint, or region.</p>
+      </section>
+
+      <details class="log-drawer" id="logs">
+        <summary>
+          <svg class="icon" aria-hidden="true"><use href="#i-up" /></svg>
+          <span class="log-title">Logs</span>
+          <span class="log-count">5</span>
+          <span class="log-summary">Recent events across the illustrative atlas</span>
+          <span class="log-open-label">Open drawer</span>
+        </summary>
+        <div class="log-content" id="log-content"></div>
+      </details>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const territories = [
+        { id: 'production', name: 'Production', note: 'Active systems', coordinate: 'N 32° 14′' },
+        { id: 'workshop', name: 'Workshop', note: 'Build & test', coordinate: 'N 12° 47′' },
+        { id: 'archive', name: 'Archive', note: 'Long-lived tools', coordinate: 'S 07° 23′' }
+      ];
+
+      const services = [
+        { id:'atlas-api', territory:'production', name:'Atlas API', description:'Public service gateway', endpoint:'api.example.test', region:'primary', status:'online', checked:'just now', owner:'Platform', route:'/services/atlas-api', deps:['Auth relay','Primary store','Event queue'], events:['Health check passed','Route manifest refreshed','Certificate verified'], health:'99.9%' },
+        { id:'forge-worker', territory:'production', name:'Forge Worker', description:'Background job runner', endpoint:'jobs.example.test', region:'primary', status:'slow', checked:'2m ago', owner:'Automation', route:'/services/forge-worker', deps:['Task queue','Artifact store'], events:['Latency elevated','Job completed','Worker pool resized'], health:'94.8%' },
+        { id:'relay', territory:'production', name:'Relay', description:'Webhook and event ingress', endpoint:'relay.example.test', region:'edge', status:'online', checked:'just now', owner:'Platform', route:'/services/relay', deps:['Event queue','Atlas API'], events:['Ingress verified','Route manifest refreshed'], health:'99.7%' },
+        { id:'northstar', territory:'production', name:'Northstar Console', description:'Operational control surface', endpoint:'console.example.test', region:'primary', status:'paused', checked:'18m ago', owner:'Personal', route:'/services/northstar', deps:['Atlas API'], events:['Pause acknowledged','Session expired'], health:'—' },
+        { id:'hearth-preview', territory:'workshop', name:'Hearth Preview', description:'Preview deployment', endpoint:'preview.example.test', region:'local', status:'online', checked:'1m ago', owner:'Frontend', route:'/services/hearth-preview', deps:['Forge Worker'], events:['Preview deployed','Asset bundle ready'], health:'99.2%' },
+        { id:'chorus-queue', territory:'workshop', name:'Chorus Queue', description:'Development message bus', endpoint:'queue.example.test', region:'local', status:'online', checked:'4m ago', owner:'Platform', route:'/services/chorus-queue', deps:['Forge Worker'], events:['Queue drained','Consumer connected'], health:'98.9%' },
+        { id:'relay-sandbox', territory:'workshop', name:'Relay Sandbox', description:'Webhook test receiver', endpoint:'hooks.example.test', region:'local', status:'down', checked:'12m ago', owner:'Platform', route:'/services/relay-sandbox', deps:['Relay'], events:['Health check failed','Retry scheduled'], health:'0%' },
+        { id:'vault-mirror', territory:'archive', name:'Vault Mirror', description:'Backup explorer', endpoint:'vault.example.test', region:'cold', status:'online', checked:'8m ago', owner:'Storage', route:'/services/vault-mirror', deps:['Object store'], events:['Snapshot indexed','Integrity check passed'], health:'100%' },
+        { id:'coldstore', territory:'archive', name:'Coldstore', description:'Long-term artifact storage', endpoint:'cold.example.test', region:'cold', status:'paused', checked:'1h ago', owner:'Storage', route:'/services/coldstore', deps:['Object store'], events:['Lifecycle paused','Snapshot retained'], health:'—' },
+        { id:'exports', territory:'archive', name:'Exports', description:'Data export utility', endpoint:'exports.example.test', region:'cold', status:'online', checked:'16m ago', owner:'Data', route:'/services/exports', deps:['Vault Mirror','Atlas API'], events:['Export completed','Manifest written'], health:'99.5%' }
+      ];
+
+      const statusMeta = {
+        online: { label:'Online', color:'var(--up)', wash:'var(--up-wash)' },
+        slow: { label:'Slow', color:'var(--slow)', wash:'var(--slow-wash)' },
+        paused: { label:'Paused', color:'var(--paused)', wash:'var(--paused-wash)' },
+        down: { label:'Down', color:'var(--down)', wash:'var(--down-wash)' }
+      };
+
+      const globalLogs = [
+        ['12:41:18','INFO','Atlas API health check passed','atlas-api'],
+        ['12:39:04','WARN','Forge Worker latency exceeded preview threshold','forge-worker'],
+        ['12:37:52','INFO','Vault Mirror snapshot indexed','vault-mirror'],
+        ['12:34:11','INFO','Hearth Preview deployment ready','hearth-preview'],
+        ['12:31:26','INFO','Relay route manifest refreshed','relay']
+      ];
+
+      let selectedId = 'atlas-api';
+      let query = '';
+      let toastTimer;
+
+      const bandStack = document.querySelector('#band-stack');
+      const bearingList = document.querySelector('#bearing-list');
+      const noResults = document.querySelector('#no-results');
+      const search = document.querySelector('#service-search');
+      const toast = document.querySelector('#toast');
+
+      function icon(id, className = 'icon') {
+        return `<svg class="${className}" aria-hidden="true"><use href="#${id}"></use></svg>`;
+      }
+
+      function selectedDetail(service) {
+        const points = service.status === 'slow' ? '0,51 22,47 45,49 68,37 91,42 114,30 137,34 160,22 183,28 206,20 229,27 252,24 280,33' : '0,44 22,38 45,41 68,29 91,32 114,23 137,26 160,18 183,25 206,20 229,27 252,23 280,28';
+        const area = `${points} 280,64 0,64`;
+        return `
+          <div class="service-detail" id="detail-${service.id}">
+            <section class="detail-section">
+              <h3>Service dossier</h3>
+              <dl class="definition-list">
+                <dt>Owner</dt><dd>${service.owner}</dd>
+                <dt>Endpoint</dt><dd>${service.endpoint}</dd>
+                <dt>Region</dt><dd>${service.region}</dd>
+                <dt>Route</dt><dd>${service.route}</dd>
+              </dl>
+              <button class="detail-route" type="button" data-open="${service.id}">Open service ${icon('i-external')}</button>
+            </section>
+            <section class="detail-section">
+              <h3>Health overview</h3>
+              <div class="health-value"><strong>${service.health}</strong><span>illustrative 24h</span></div>
+              <svg class="health-chart" viewBox="0 0 280 70" preserveAspectRatio="none" role="img" aria-label="Illustrative service health trace">
+                <path class="guide" d="M0 16H280M0 40H280M0 64H280" />
+                <polygon class="area" points="${area}" />
+                <polyline class="trace" points="${points}" />
+              </svg>
+            </section>
+            <section class="detail-section dependencies">
+              <h3>Dependencies</h3>
+              <ul class="signal-list">${service.deps.map(dep => `<li><span><i></i>${dep}</span><small>available</small></li>`).join('')}</ul>
+            </section>
+            <section class="detail-section events">
+              <h3>Recent events</h3>
+              <ul class="signal-list">${service.events.map((event, i) => `<li><span><i></i>${event}</span><time>${i ? `${i * 6}m` : 'now'}</time></li>`).join('')}</ul>
+            </section>
+          </div>`;
+      }
+
+      function serviceRow(service) {
+        const meta = statusMeta[service.status];
+        const isSelected = service.id === selectedId;
+        return `
+          <div class="service-row ${isSelected ? 'selected' : ''}" style="--status-color:${meta.color};--status-wash:${meta.wash}" data-service-id="${service.id}">
+            <button class="service-select" type="button" aria-expanded="${isSelected}" aria-controls="detail-${service.id}" data-select="${service.id}">
+              ${icon('i-chevron', 'chevron')}
+              <span class="route-dot"></span>
+              <span class="service-title"><span class="service-name">${service.name}</span><span class="service-description">${service.description}</span></span>
+            </button>
+            <span class="cell endpoint">${service.endpoint}</span>
+            <span class="cell"><span class="status">${meta.label}</span></span>
+            <span class="cell">${service.checked}</span>
+            <button class="open-action" type="button" data-open="${service.id}" aria-label="Open ${service.name}"><span>Open</span>${icon('i-external')}</button>
+            ${isSelected ? selectedDetail(service) : ''}
+          </div>`;
+      }
+
+      function matches(service) {
+        if (!query) return true;
+        return [service.name, service.description, service.endpoint, service.region, service.territory, service.status].join(' ').toLowerCase().includes(query);
+      }
+
+      function renderAtlas() {
+        const visible = services.filter(matches);
+        if (visible.length && !visible.some(service => service.id === selectedId)) selectedId = visible[0].id;
+
+        bandStack.innerHTML = territories.map(territory => {
+          const rows = visible.filter(service => service.territory === territory.id);
+          return `
+            <section class="territory-band ${rows.length ? '' : 'empty'}" id="territory-${territory.id}" aria-labelledby="territory-title-${territory.id}">
+              <header class="territory-label">
+                <span class="coordinate">${territory.coordinate}</span>
+                <h2 id="territory-title-${territory.id}">${territory.name}</h2>
+                <p>${territory.note}</p>
+                <span class="territory-ticks" aria-hidden="true"><i></i><i></i><i></i></span>
+              </header>
+              <div class="services">
+                ${rows.map(serviceRow).join('')}
+                <div class="empty-band">No matching services in this territory.</div>
+              </div>
+            </section>`;
+        }).join('');
+
+        noResults.classList.toggle('visible', visible.length === 0);
+        noResults.previousElementSibling.hidden = visible.length === 0;
+        bindAtlasActions();
+      }
+
+      function renderBearings() {
+        const order = ['online','slow','paused','down'];
+        bearingList.innerHTML = order.map(status => {
+          const meta = statusMeta[status];
+          const count = services.filter(service => service.status === status).length;
+          const note = status === 'online' ? 'ready to open' : status === 'slow' ? 'needs a glance' : status === 'paused' ? 'intentionally quiet' : 'needs attention';
+          return `
+            <div class="bearing" style="--bearing-color:${meta.color}">
+              <div>
+                <div class="bearing-glyph" aria-hidden="true"><span class="bearing-ring"><i></i></span></div>
+                <strong>${count}</strong><span>${meta.label}</span><small>${note}</small>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      function renderLogs() {
+        document.querySelector('#log-content').innerHTML = globalLogs.map(([time, level, message, source]) => `
+          <div class="log-row"><time>${time}</time><span class="log-level ${level === 'WARN' ? 'warn' : ''}">${level}</span><span>${message}</span><span class="log-source">${source}</span></div>
+        `).join('');
+      }
+
+      function bindAtlasActions() {
+        document.querySelectorAll('[data-select]').forEach(button => button.addEventListener('click', () => {
+          selectedId = button.dataset.select;
+          renderAtlas();
+          requestAnimationFrame(() => document.querySelector(`[data-service-id="${selectedId}"]`)?.scrollIntoView({ block:'nearest', behavior:'smooth' }));
+        }));
+        document.querySelectorAll('[data-open]').forEach(button => button.addEventListener('click', () => {
+          const service = services.find(item => item.id === button.dataset.open);
+          showToast(`${service.name} is illustrative. Connect its real URL during implementation.`);
+        }));
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.classList.add('visible');
+        toastTimer = setTimeout(() => toast.classList.remove('visible'), 3200);
+      }
+
+      search.addEventListener('input', () => {
+        query = search.value.trim().toLowerCase();
+        renderAtlas();
+      });
+
+      document.addEventListener('keydown', event => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+          event.preventDefault();
+          search.focus();
+          search.select();
+        }
+        if (event.key === '/' && document.activeElement !== search) {
+          event.preventDefault();
+          search.focus();
+        }
+      });
+
+      document.querySelectorAll('[data-jump]').forEach(button => button.addEventListener('click', () => {
+        const target = document.querySelector(`#${button.dataset.jump}`);
+        target?.scrollIntoView({ behavior:'smooth', block:'start' });
+        document.querySelectorAll('[data-jump]').forEach(item => item.classList.toggle('active', item === button));
+        if (button.dataset.jump === 'logs') document.querySelector('#logs').open = true;
+      }));
+
+      renderAtlas();
+      renderBearings();
+      renderLogs();
+    </script>
+  </body>
+</html>

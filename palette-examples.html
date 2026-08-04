@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Hyperion — Palette studies</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geologica:wght@400;500;600;650&family=Recursive:slnt,wght@-15..0,400..700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        font-family: "Geologica", sans-serif;
+        color-scheme: light;
+        --canvas: #f4f0e6;
+        --surface: #fbf8f0;
+        --surface-strong: #e4ddcf;
+        --line: #cec4b2;
+        --ink: #282824;
+        --muted: #615f57;
+        --accent: #876721;
+        --accent-ink: #705317;
+        --accent-soft: #ebe0be;
+        --up: #4f6b54;
+        --up-soft: #e4ece2;
+        --warning: #8a5d16;
+        --warning-soft: #f3e8ce;
+        --down: #9b433b;
+        --down-soft: #f2dfdb;
+        --unknown: #65665f;
+        --unknown-soft: #e8e6e0;
+        --radius: 13px;
+        --title-font: "Recursive", sans-serif;
+      }
+
+      [data-theme="index"] {
+        --canvas: #e9e6df;
+        --surface: #fffefa;
+        --surface-strong: #d3cec5;
+        --line: #bcb6ab;
+        --ink: #181916;
+        --muted: #53554f;
+        --accent: #765046;
+        --accent-ink: #633e35;
+        --accent-soft: #eadbd6;
+        --up: #3f6549;
+        --up-soft: #dfeade;
+        --warning: #7a571b;
+        --warning-soft: #f0e3c7;
+        --down: #8f403a;
+        --down-soft: #eedbd7;
+        --unknown: #5d605a;
+        --unknown-soft: #e2e1dc;
+        --radius: 3px;
+      }
+
+      [data-theme="signal"] {
+        --canvas: #f2efe5;
+        --surface: #faf8f1;
+        --surface-strong: #ded8ca;
+        --line: #bbb7ac;
+        --ink: #272824;
+        --muted: #5f615b;
+        --accent: #a04438;
+        --accent-ink: #85352c;
+        --accent-soft: #f0deda;
+        --up: #4d6b52;
+        --up-soft: #dfe9df;
+        --warning: #876018;
+        --warning-soft: #f0e5ca;
+        --down: #a04438;
+        --down-soft: #f0deda;
+        --unknown: #61645e;
+        --unknown-soft: #e5e4de;
+        --radius: 8px;
+      }
+
+      [data-theme="instrument"] {
+        color-scheme: dark;
+        --canvas: #252621;
+        --surface: #2e2f29;
+        --surface-strong: #3b3c35;
+        --line: #505148;
+        --ink: #f2eee2;
+        --muted: #c4c0b4;
+        --accent: #d6aa4f;
+        --accent-ink: #f0c96e;
+        --accent-soft: #4a4028;
+        --up: #9dbb8f;
+        --up-soft: #334536;
+        --warning: #e6b65c;
+        --warning-soft: #4b402b;
+        --down: #e28b7e;
+        --down-soft: #503733;
+        --unknown: #c2c3ba;
+        --unknown-soft: #3e403a;
+        --radius: 6px;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        background: var(--canvas);
+        color: var(--ink);
+        transition: background-color 320ms ease-out, color 320ms ease-out;
+      }
+
+      button, a { font: inherit; }
+
+      button:focus-visible, a:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+
+      .shell {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 26px 0 48px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding-bottom: 22px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .mark { width: 31px; height: 31px; color: var(--accent); flex: none; }
+
+      .brand-name {
+        margin: 0;
+        font-family: var(--title-font);
+        font-size: 1.28rem;
+        font-variation-settings: "CASL" 0.2;
+        letter-spacing: -0.03em;
+      }
+
+      .brand-note {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+
+      .demo-label {
+        padding: 6px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 0.69rem;
+        white-space: nowrap;
+      }
+
+      .theme-picker {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 7px;
+        margin: 18px 0 46px;
+        padding: 6px;
+        background: var(--surface-strong);
+        border-radius: calc(var(--radius) + 2px);
+      }
+
+      .theme-button {
+        min-height: 42px;
+        padding: 8px 12px;
+        border: 0;
+        border-radius: var(--radius);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        transition: background-color 180ms ease-out, color 180ms ease-out;
+      }
+
+      .theme-button:hover { color: var(--ink); }
+
+      .theme-button[aria-pressed="true"] {
+        background: var(--surface);
+        color: var(--ink);
+        box-shadow: 0 3px 10px color-mix(in srgb, var(--ink) 9%, transparent);
+      }
+
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+        gap: 52px;
+        align-items: end;
+        margin-bottom: 26px;
+      }
+
+      h1 {
+        max-width: 720px;
+        margin: 0;
+        font-family: var(--title-font);
+        font-size: clamp(2.4rem, 5vw, 4.9rem);
+        font-weight: 560;
+        font-variation-settings: "CASL" 0.35;
+        letter-spacing: -0.04em;
+        line-height: 0.95;
+        text-wrap: balance;
+      }
+
+      .intro-copy {
+        max-width: 45ch;
+        margin: 20px 0 0;
+        color: var(--muted);
+        font-size: 0.96rem;
+        line-height: 1.6;
+      }
+
+      .coordinates {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .coordinate { padding: 13px 9px; }
+      .coordinate + .coordinate { border-left: 1px solid var(--line); }
+      .coordinate strong { display: block; font-size: 1.4rem; font-weight: 580; }
+      .coordinate span { color: var(--muted); font-size: 0.68rem; }
+
+      .route-rule {
+        position: relative;
+        height: 22px;
+        margin-bottom: 12px;
+      }
+
+      .route-rule::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background: var(--line);
+      }
+
+      .route-rule::after {
+        content: "";
+        position: absolute;
+        top: 6px;
+        left: min(66%, calc(100% - 12px));
+        width: 9px;
+        height: 9px;
+        border: 2px solid var(--canvas);
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent);
+        transition: left 380ms cubic-bezier(.16, 1, .3, 1), background-color 280ms ease-out;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 20px;
+      }
+
+      .service-list, .details {
+        background: var(--surface);
+        border-radius: var(--radius);
+      }
+
+      .service-list { overflow: hidden; }
+
+      .list-head {
+        display: grid;
+        grid-template-columns: minmax(190px, 1.4fr) 0.8fr 0.7fr auto;
+        gap: 16px;
+        align-items: center;
+        padding: 13px 18px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.68rem;
+      }
+
+      .service-row {
+        display: grid;
+        grid-template-columns: minmax(190px, 1.4fr) 0.8fr 0.7fr auto;
+        gap: 16px;
+        align-items: center;
+        min-height: 76px;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--line);
+        transition: background-color 160ms ease-out;
+      }
+
+      .service-row:last-child { border-bottom: 0; }
+      .service-row:hover { background: var(--accent-soft); }
+
+      .service-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+      .service-index {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        flex: none;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        color: var(--accent-ink);
+        font-family: "Recursive", sans-serif;
+        font-size: 0.72rem;
+      }
+
+      .service-name { display: block; overflow: hidden; text-overflow: ellipsis; font-size: 0.92rem; font-weight: 600; white-space: nowrap; }
+      .service-url { display: block; overflow: hidden; margin-top: 3px; color: var(--muted); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        gap: 7px;
+        padding: 5px 8px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+
+      .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+      .status.up { color: var(--up); background: var(--up-soft); }
+      .status.warning { color: var(--warning); background: var(--warning-soft); }
+      .status.unknown { color: var(--unknown); background: var(--unknown-soft); }
+
+      .latency { color: var(--muted); font-family: "Recursive", monospace; font-size: 0.72rem; }
+
+      .open-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        background: transparent;
+        color: var(--ink);
+        cursor: pointer;
+      }
+
+      .open-button:hover { border-color: var(--accent); color: var(--accent-ink); }
+      .open-button svg { width: 15px; height: 15px; }
+
+      .details { padding: 23px; }
+
+      .details h2 {
+        margin: 0;
+        font-family: var(--title-font);
+        font-size: 1.35rem;
+        font-variation-settings: "CASL" 0.25;
+        letter-spacing: -0.025em;
+      }
+
+      .details-subtitle { margin: 6px 0 23px; color: var(--muted); font-size: 0.75rem; line-height: 1.5; }
+
+      .detail-pair { padding: 14px 0; border-top: 1px solid var(--line); }
+      .detail-pair span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 0.67rem; }
+      .detail-pair strong { font-size: 0.78rem; font-weight: 500; }
+
+      .primary-action, .secondary-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 42px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .primary-action { margin-top: 20px; border: 1px solid var(--accent); background: var(--accent); color: var(--surface); }
+      .secondary-action { margin-top: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+      .primary-action svg, .secondary-action svg { width: 15px; height: 15px; }
+
+      .swatches {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 1px;
+        margin-top: 28px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--line);
+      }
+
+      .swatch { min-height: 88px; padding: 12px; background: var(--swatch); color: var(--swatch-text); }
+      .swatch span { display: block; font-size: 0.65rem; }
+      .swatch code { display: block; margin-top: 21px; font-family: "Recursive", monospace; font-size: 0.67rem; }
+
+      @media (max-width: 860px) {
+        .shell { width: min(100% - 28px, 720px); padding-top: 18px; }
+        .theme-picker { grid-template-columns: repeat(2, 1fr); margin-bottom: 36px; }
+        .intro, .workspace { grid-template-columns: 1fr; gap: 26px; }
+        .coordinates { max-width: 420px; }
+        .swatches { grid-template-columns: repeat(4, 1fr); }
+      }
+
+      @media (max-width: 560px) {
+        .brand-note { display: none; }
+        .demo-label { padding: 4px 7px; font-size: 0.61rem; }
+        .theme-button { font-size: 0.78rem; }
+        h1 { font-size: clamp(2.2rem, 13vw, 3.5rem); }
+        .list-head { display: none; }
+        .service-row { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+        .latency { display: none; }
+        .status { padding: 5px 6px; }
+        .swatches { grid-template-columns: repeat(2, 1fr); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+      }
+    </style>
+  </head>
+  <body data-theme="atlas">
+    <!-- This is a palette comparison artifact, not a production dashboard. All service names and values are explicitly illustrative. -->
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+            <circle cx="16" cy="16" r="10.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <path d="M3 16h26M16 3v26M8.5 8.5l15 15M23.5 8.5l-15 15" fill="none" stroke="currentColor" stroke-width="1" />
+            <circle cx="16" cy="16" r="2.5" fill="currentColor" />
+          </svg>
+          <div>
+            <p class="brand-name">Hyperion</p>
+            <p class="brand-note">Everything deployed, kept within reach.</p>
+          </div>
+        </div>
+        <span class="demo-label">Illustrative data</span>
+      </header>
+
+      <nav class="theme-picker" aria-label="Palette examples">
+        <button class="theme-button" type="button" data-theme-choice="atlas" aria-pressed="true">Service Atlas</button>
+        <button class="theme-button" type="button" data-theme-choice="index" aria-pressed="false">Living Index</button>
+        <button class="theme-button" type="button" data-theme-choice="signal" aria-pressed="false">Signal Grid</button>
+        <button class="theme-button" type="button" data-theme-choice="instrument" aria-pressed="false">Status Instrument</button>
+      </nav>
+
+      <section class="intro" aria-labelledby="page-title">
+        <div>
+          <h1 id="page-title">Your deployed world, above the noise.</h1>
+          <p class="intro-copy">A fast index of every service you run. Open what you need, confirm its state, and leave the deeper operational detail for when it matters.</p>
+        </div>
+        <div class="coordinates" aria-label="Illustrative service summary">
+          <div class="coordinate"><strong>7</strong><span>services</span></div>
+          <div class="coordinate"><strong>6</strong><span>reachable</span></div>
+          <div class="coordinate"><strong>1</strong><span>attention</span></div>
+        </div>
+      </section>
+
+      <div class="route-rule" aria-hidden="true"></div>
+
+      <section class="workspace" aria-label="Illustrative Hyperion dashboard">
+        <div class="service-list">
+          <div class="list-head" aria-hidden="true"><span>Service</span><span>State</span><span>Response</span><span>Open</span></div>
+
+          <article class="service-row">
+            <div class="service-identity"><span class="service-index">A1</span><div><span class="service-name">Atlas API</span><span class="service-url">api.example.test</span></div></div>
+            <span class="status up">Online</span><span class="latency">42 ms</span>
+            <button class="open-button" type="button" aria-label="Open Atlas API"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 16 16 8M9 8h7v7"/><path d="M16 13v5H6V8h5"/></svg></button>
+          </article>
+
+          <article class="service-row">
+            <div class="service-identity"><span class="service-index">F2</span><div><span class="service-name">Forge Worker</span><span class="service-url">jobs.example.test</span></div></div>
+            <span class="status warning">Slow</span><span class="latency">860 ms</span>
+            <button class="open-button" type="button" aria-label="Open Forge Worker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 16 16 8M9 8h7v7"/><path d="M16 13v5H6V8h5"/></svg></button>
+          </article>
+
+          <article class="service-row">
+            <div class="service-identity"><span class="service-index">M3</span><div><span class="service-name">Mnemosyne Archive</span><span class="service-url">archive.example.test</span></div></div>
+            <span class="status up">Online</span><span class="latency">71 ms</span>
+            <button class="open-button" type="button" aria-label="Open Mnemosyne Archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 16 16 8M9 8h7v7"/><path d="M16 13v5H6V8h5"/></svg></button>
+          </article>
+
+          <article class="service-row">
+            <div class="service-identity"><span class="service-index">N4</span><div><span class="service-name">Northstar Console</span><span class="service-url">console.example.test</span></div></div>
+            <span class="status unknown">Paused</span><span class="latency">—</span>
+            <button class="open-button" type="button" aria-label="Open Northstar Console"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 16 16 8M9 8h7v7"/><path d="M16 13v5H6V8h5"/></svg></button>
+          </article>
+        </div>
+
+        <aside class="details" aria-label="Selected service details">
+          <h2>Atlas API</h2>
+          <p class="details-subtitle">Selected service · illustrative preview</p>
+          <div class="detail-pair"><span>Endpoint</span><strong>api.example.test</strong></div>
+          <div class="detail-pair"><span>Last checked</span><strong>just now</strong></div>
+          <div class="detail-pair"><span>Environment</span><strong>production</strong></div>
+          <a class="primary-action" href="#" onclick="return false">Open service<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M8 16 16 8M9 8h7v7"/><path d="M16 13v5H6V8h5"/></svg></a>
+          <a class="secondary-action" href="#" onclick="return false">View logs<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg></a>
+        </aside>
+      </section>
+
+      <section class="swatches" aria-label="Current palette">
+        <div class="swatch" style="--swatch:var(--canvas);--swatch-text:var(--ink)"><span>Canvas</span><code data-token="canvas"></code></div>
+        <div class="swatch" style="--swatch:var(--surface);--swatch-text:var(--ink)"><span>Surface</span><code data-token="surface"></code></div>
+        <div class="swatch" style="--swatch:var(--ink);--swatch-text:var(--surface)"><span>Ink</span><code data-token="ink"></code></div>
+        <div class="swatch" style="--swatch:var(--accent);--swatch-text:var(--surface)"><span>Accent</span><code data-token="accent"></code></div>
+        <div class="swatch" style="--swatch:var(--up-soft);--swatch-text:var(--up)"><span>Online</span><code data-token="up"></code></div>
+        <div class="swatch" style="--swatch:var(--warning-soft);--swatch-text:var(--warning)"><span>Warning</span><code data-token="warning"></code></div>
+        <div class="swatch" style="--swatch:var(--down-soft);--swatch-text:var(--down)"><span>Down</span><code data-token="down"></code></div>
+      </section>
+    </main>
+
+    <script>
+      const buttons = [...document.querySelectorAll('[data-theme-choice]')];
+      const root = document.body;
+      const tokenNodes = [...document.querySelectorAll('[data-token]')];
+
+      function updateTokenLabels() {
+        const styles = getComputedStyle(root);
+        tokenNodes.forEach((node) => {
+          node.textContent = styles.getPropertyValue(`--${node.dataset.token}`).trim().toUpperCase();
+        });
+      }
+
+      function setTheme(theme) {
+        root.dataset.theme = theme;
+        buttons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.themeChoice === theme)));
+        requestAnimationFrame(updateTokenLabels);
+        history.replaceState(null, '', `#${theme}`);
+      }
+
+      buttons.forEach((button) => button.addEventListener('click', () => setTheme(button.dataset.themeChoice)));
+      const initialTheme = ['atlas', 'index', 'signal', 'instrument'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'atlas';
+      setTheme(initialTheme);
+    </script>
+  </body>
+</html>
