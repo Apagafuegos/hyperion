@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -338,6 +339,41 @@ def test_stats_collected_for_running_owned_components() -> None:
     server = next(c for c in observation.components if c.selector == "server")
     assert server.cpu_percent is not None and server.cpu_percent > 0
     assert server.memory_bytes == 104857600
+
+
+def test_observe_reuses_single_client() -> None:
+    catalog = load_catalog(FIXTURES / "fixture-services.yaml")
+    factory, created = make_client()
+    provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
+    run(provider.observe(catalog))
+    assert len(created) == 1
+
+
+def test_stats_collected_concurrently() -> None:
+    catalog = load_catalog(FIXTURES / "fixture-services.yaml")
+
+    class SlowContainer(FakeContainer):
+        def stats(self, stream: bool = False) -> dict:
+            time.sleep(0.05)
+            return super().stats(stream=stream)
+
+    containers = [
+        SlowContainer("s1", "authentik-server-1", labels("authentik", "server"), "running",
+                      stats_result=STATS),
+        SlowContainer("s2", "authentik-worker-1", labels("authentik", "worker"), "running",
+                      stats_result=STATS),
+        SlowContainer("s3", "authentik-postgresql-1", labels("authentik", "postgresql"), "running",
+                      stats_result=STATS),
+        SlowContainer("s4", "rarecord-app-1", labels("rarecord", "app"), "running",
+                      stats_result=STATS),
+    ]
+    factory, _ = make_client(containers)
+    provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
+    start = time.monotonic()
+    observation = run(provider.observe(catalog))
+    elapsed = time.monotonic() - start
+    assert elapsed < 0.15, f"stats collected sequentially: {elapsed:.3f}s"
+    assert sum(1 for c in observation.components if c.cpu_percent is not None) == 4
 
 
 def test_read_logs_demuxes_streams() -> None:

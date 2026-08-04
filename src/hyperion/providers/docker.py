@@ -74,6 +74,7 @@ class DockerProvider:
         import docker  # imported lazily so unit tests can inject fakes
 
         self._host = host
+        self._pool_size = pool_size
         self._pool = ThreadPoolExecutor(max_workers=pool_size)
         self._client_factory = client_factory or (
             lambda url: docker.DockerClient(base_url=url, timeout=10)
@@ -136,6 +137,7 @@ class DockerProvider:
 
             conflicts: list[str] = []
             components: list[ComponentEvidence] = []
+            stats_needed: list[tuple[ComponentEvidence, str]] = []
             for service in catalog.services:
                 runtime = service.runtime
                 if runtime.provider != "docker-compose":
@@ -172,9 +174,24 @@ class DockerProvider:
                             )
                         )
                         continue
-                    components.append(
-                        await self._build_evidence(service, declared, attrs_list[0], observed_at)
-                    )
+                    evidence = self._build_evidence(service, declared, attrs_list[0], observed_at)
+                    components.append(evidence)
+                    if evidence.state == "running":
+                        stats_needed.append((evidence, str(attrs_list[0].get("Id", ""))))
+
+            if stats_needed:
+                semaphore = asyncio.Semaphore(self._pool_size)
+
+                async def _stats_task(container_id: str) -> dict[str, Any] | None:
+                    async with semaphore:
+                        return await self._stats(client, container_id)
+
+                tasks = [_stats_task(container_id) for _, container_id in stats_needed]
+                results = await asyncio.gather(*tasks)
+                for (evidence, _), stats in zip(stats_needed, results, strict=True):
+                    if stats is not None:
+                        evidence.cpu_percent = _cpu_percent(stats)
+                        evidence.memory_bytes = stats.get("memory_stats", {}).get("usage")
 
             observation_state: Literal["available", "degraded", "unavailable"] = (
                 "degraded" if conflicts else "available"
@@ -196,7 +213,7 @@ class DockerProvider:
                 error=str(exc)[:240],
             )
 
-    async def _build_evidence(
+    def _build_evidence(
         self,
         service: Service,
         declared: DockerComponent,
@@ -223,14 +240,6 @@ class DockerProvider:
         if started is not None and docker_state in ("running", "starting", "restarting"):
             uptime = max(0, int((observed_at - started).total_seconds()))
 
-        cpu = None
-        memory = None
-        if docker_state == "running":
-            stats = await self._stats(attrs.get("Id", ""))
-            if stats is not None:
-                cpu = _cpu_percent(stats)
-                memory = stats.get("memory_stats", {}).get("usage")
-
         return ComponentEvidence(
             service_id=service.service_id,
             selector=declared.selector,
@@ -241,14 +250,11 @@ class DockerProvider:
             image=str(image)[:256] if image else None,
             uptime_seconds=uptime,
             restart_count=restart_count if isinstance(restart_count, int) else None,
-            cpu_percent=cpu,
-            memory_bytes=memory,
             observed_at=observed_at,
         )
 
-    async def _stats(self, container_id: str) -> dict[str, Any] | None:
+    async def _stats(self, client: Any, container_id: str) -> dict[str, Any] | None:
         try:
-            client = await self._run_sync(lambda: self._client_factory(self._host))
             container = await self._run_sync(lambda: client.containers.get(container_id))
             stats = await self._run_sync(lambda: container.stats(stream=False))
         except Exception as exc:  # stats are optional evidence
