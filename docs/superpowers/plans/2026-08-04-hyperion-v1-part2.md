@@ -2645,18 +2645,19 @@ test("atlas renders all territories and service states", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Services" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Foundations" })).toBeVisible();
   await expect(page.locator(".service-row")).toHaveCount(10);
-  await expect(page.locator(".status-down")).toHaveCount(3);
+  await expect(page.locator(".status-down")).toHaveCount(2);
+  await expect(page.locator(".status-degraded")).toHaveCount(3);
   await expect(page.locator(".status-dormant")).toHaveCount(1);
-  await expect(page.locator(".status-reachable")).toHaveCount(2);
+  await expect(page.locator(".status-reachable")).toHaveCount(4);
 });
 
 test("search filters services and restores selection", async ({ page }) => {
   await page.goto("/");
   await page.locator("#search").fill("langfuse");
-  await expect(page.locator(".service-row:visible")).toHaveCount(1);
-  await expect(page.locator(".service-row:visible .service-name")).toHaveText("Langfuse");
+  await expect(page.locator(".service-row").filter({ visible: true })).toHaveCount(1);
+  await expect(page.locator(".service-row").filter({ visible: true }).locator(".service-name")).toHaveText("Langfuse");
   await page.locator("#search").fill("");
-  await expect(page.locator(".service-row:visible")).toHaveCount(10);
+  await expect(page.locator(".service-row").filter({ visible: true })).toHaveCount(10);
 });
 
 test("selecting a row opens the dossier inline and preserves atlas topology", async ({ page }) => {
@@ -2690,7 +2691,8 @@ test("copy action shows toast and writes to clipboard", async ({ page }) => {
 test("bearings count service states and unmapped runtimes are diagnostic only", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".bearing-reachable .bearing-value")).toHaveText("2");
-  await expect(page.locator(".bearing-down .bearing-value")).toHaveText("3");
+  await expect(page.locator(".bearing-down .bearing-value")).toHaveText("2");
+  await expect(page.locator(".bearing-reachable .bearing-value")).toHaveText("4");
   await expect(page.locator("#diagnostics-keycap")).toHaveText("3 unmapped runtimes");
 });
 
