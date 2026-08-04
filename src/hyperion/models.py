@@ -23,6 +23,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 type id = Annotated[
     str, Field(pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", min_length=1, max_length=64)
 ]
+type Id = Annotated[
+    str, Field(pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", min_length=1, max_length=64)
+]
 type selector = Annotated[
     str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.@-]*$", min_length=1, max_length=128)
 ]
@@ -39,7 +42,7 @@ ComponentState = Literal[
     "running", "starting", "restarting", "paused", "stopped", "missing", "unknown"
 ]
 HealthState = Literal["healthy", "starting", "unhealthy", "unconfigured", "unknown"]
-ServiceState = Literal["reachable", "degraded", "down", "dormant", "unknown"]
+type ServiceState = Literal["reachable", "degraded", "down", "dormant", "unknown"]
 
 
 class CatalogModel(BaseModel):
@@ -217,7 +220,7 @@ class NoneActionSnapshot(ApiModel):
     type: Literal["none"]
 
 
-ServiceAction = OpenActionSnapshot | CopyActionSnapshot | NoneActionSnapshot
+type ServiceAction = OpenActionSnapshot | CopyActionSnapshot | NoneActionSnapshot
 
 
 class StateReason(ApiModel):
@@ -255,7 +258,7 @@ class ComponentSnapshot(ApiModel):
 
 
 class DependencySnapshot(ApiModel):
-    service_id: id
+    service_id: Id
     state: ServiceState
 
 
@@ -280,7 +283,7 @@ class Diagnostics(ApiModel):
 
 
 class ServiceSnapshot(ApiModel):
-    id: id
+    id: Id
     name: str = Field(max_length=64)
     description: str = Field(max_length=160)
     territory: TerritoryName
@@ -323,7 +326,7 @@ class LogRecord(ApiModel):
 
 
 class LogsResponse(ApiModel):
-    service_id: id
+    service_id: Id
     requested_at: datetime
     source: str | None
     records: list[LogRecord] = Field(max_length=500)

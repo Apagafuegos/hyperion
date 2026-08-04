@@ -1,0 +1,772 @@
+openapi: 3.1.0
+info:
+  title: Hyperion API
+  version: 1.0.0
+  description: Read-only API for the single-VPS Hyperion service atlas.
+servers:
+- url: /
+security:
+- authentikIdentity: []
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Process liveness check
+      security: []
+      responses:
+        '200':
+          description: The process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /readyz:
+    get:
+      operationId: getReadiness
+      summary: Catalog and initial snapshot readiness check
+      security: []
+      responses:
+        '200':
+          description: The catalog is valid and an initial snapshot exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: The application cannot yet serve a valid atlas snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/snapshot:
+    get:
+      operationId: getSnapshot
+      summary: Get the complete normalized atlas snapshot
+      parameters:
+      - name: If-None-Match
+        in: header
+        required: false
+        schema:
+          type:
+          - string
+          - 'null'
+      responses:
+        '200':
+          description: Current normalized service snapshot.
+          headers:
+            ETag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                const: private, max-age=0, must-revalidate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AtlasSnapshot'
+        '304':
+          description: Snapshot has not changed.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/services/{serviceId}/logs:
+    get:
+      operationId: getServiceLogs
+      summary: Get bounded recent logs for one allowlisted service
+      parameters:
+      - name: serviceId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - name: source
+        in: query
+        required: false
+        description: Allowlisted component selector. Omit to aggregate all configured
+          sources.
+        schema:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 128
+          description: Allowlisted component selector. Omit to aggregate all configured
+            sources.
+      - name: tail
+        in: query
+        required: false
+        schema:
+          type: integer
+          enum:
+          - 50
+          - 100
+          - 250
+          - 500
+          default: 100
+      - name: before
+        in: query
+        required: false
+        description: Exclusive RFC 3339 upper timestamp for bounded backward pagination.
+        schema:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Exclusive RFC 3339 upper timestamp for bounded backward pagination.
+      responses:
+        '200':
+          description: Logs sorted oldest to newest.
+          headers:
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                const: private, no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/InvalidRequest'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    authentikIdentity:
+      type: apiKey
+      in: header
+      name: X-Authentik-Username
+  schemas:
+    Id:
+      type: string
+      pattern: ^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$
+      minLength: 1
+      maxLength: 64
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - ok
+          - ready
+    AtlasSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - schemaVersion
+      - generatedAt
+      - catalogRevision
+      - fresh
+      - providers
+      - summary
+      - territories
+      - services
+      - diagnostics
+      properties:
+        schemaVersion:
+          const: 1
+        generatedAt:
+          type: string
+          format: date-time
+        catalogRevision:
+          type: string
+          description: SHA-256 digest of the validated, normalized catalog.
+        fresh:
+          type: boolean
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderStatus'
+        summary:
+          $ref: '#/components/schemas/StateSummary'
+        territories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Territory'
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceSnapshot'
+        diagnostics:
+          $ref: '#/components/schemas/Diagnostics'
+    ProviderStatus:
+      type: object
+      additionalProperties: false
+      required:
+      - provider
+      - state
+      - observedAt
+      - message
+      properties:
+        provider:
+          type: string
+          enum:
+          - docker
+          - systemd
+          - probe
+        state:
+          type: string
+          enum:
+          - available
+          - degraded
+          - unavailable
+        observedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        message:
+          type:
+          - string
+          - 'null'
+          maxLength: 240
+    StateSummary:
+      type: object
+      additionalProperties: false
+      required:
+      - total
+      - reachable
+      - degraded
+      - down
+      - dormant
+      - unknown
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        reachable:
+          type: integer
+          minimum: 0
+        degraded:
+          type: integer
+          minimum: 0
+        down:
+          type: integer
+          minimum: 0
+        dormant:
+          type: integer
+          minimum: 0
+        unknown:
+          type: integer
+          minimum: 0
+    Territory:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - label
+      - order
+      properties:
+        id:
+          type: string
+          enum:
+          - applications
+          - services
+          - foundations
+        label:
+          type: string
+          enum:
+          - Applications
+          - Services
+          - Foundations
+        order:
+          type: integer
+          enum:
+          - 1
+          - 2
+          - 3
+    ServiceSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - description
+      - territory
+      - kind
+      - intent
+      - action
+      - state
+      - stateReasons
+      - observedAt
+      - route
+      - components
+      - dependencies
+      - logSources
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          maxLength: 64
+        description:
+          type: string
+          maxLength: 160
+        territory:
+          type: string
+          enum:
+          - applications
+          - services
+          - foundations
+        kind:
+          type: string
+          enum:
+          - web
+          - api
+          - mcp
+          - worker
+          - infrastructure
+        intent:
+          type: string
+          enum:
+          - active
+          - dormant
+        action:
+          $ref: '#/components/schemas/ServiceAction'
+        state:
+          $ref: '#/components/schemas/ServiceState'
+        stateReasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/StateReason'
+        observedAt:
+          type: string
+          format: date-time
+        route:
+          oneOf:
+          - $ref: '#/components/schemas/RouteSnapshot'
+          - type: 'null'
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentSnapshot'
+        dependencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/DependencySnapshot'
+        logSources:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogSource'
+    ServiceAction:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        required:
+        - type
+        - url
+        properties:
+          type:
+            const: open
+          url:
+            type: string
+            format: uri
+      - type: object
+        additionalProperties: false
+        required:
+        - type
+        - url
+        properties:
+          type:
+            const: copy
+          url:
+            type: string
+            format: uri
+      - type: object
+        additionalProperties: false
+        required:
+        - type
+        properties:
+          type:
+            const: none
+    ServiceState:
+      type: string
+      enum:
+      - reachable
+      - degraded
+      - down
+      - dormant
+      - unknown
+    StateReason:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - severity
+      - message
+      - componentKey
+      properties:
+        code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        severity:
+          type: string
+          enum:
+          - info
+          - warning
+          - critical
+        message:
+          type: string
+          maxLength: 240
+        componentKey:
+          type:
+          - string
+          - 'null'
+    RouteSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - state
+      - statusCode
+      - latencyMs
+      - consecutiveFailures
+      - observedAt
+      - error
+      properties:
+        state:
+          type: string
+          enum:
+          - reachable
+          - slow
+          - failed
+          - unknown
+        statusCode:
+          type:
+          - integer
+          - 'null'
+          minimum: 100
+          maximum: 599
+        latencyMs:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+        consecutiveFailures:
+          type: integer
+          minimum: 0
+        observedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        error:
+          oneOf:
+          - type: string
+            enum:
+            - dns
+            - timeout
+            - tls
+            - connection
+            - http
+            - unknown
+          - type: 'null'
+    ComponentSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - key
+      - label
+      - provider
+      - providerRef
+      - role
+      - required
+      - state
+      - health
+      - observedAt
+      - image
+      - uptimeSeconds
+      - restartCount
+      - cpuPercent
+      - memoryBytes
+      properties:
+        key:
+          type: string
+          maxLength: 128
+        label:
+          type: string
+          maxLength: 64
+        provider:
+          type: string
+          enum:
+          - docker
+          - systemd
+        providerRef:
+          type:
+          - string
+          - 'null'
+          maxLength: 128
+        role:
+          type: string
+          enum:
+          - primary
+          - worker
+          - dependency
+          - sidecar
+          - shared
+        required:
+          type: boolean
+        state:
+          type: string
+          enum:
+          - running
+          - starting
+          - restarting
+          - paused
+          - stopped
+          - missing
+          - unknown
+        health:
+          type: string
+          enum:
+          - healthy
+          - starting
+          - unhealthy
+          - unconfigured
+          - unknown
+        observedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        image:
+          type:
+          - string
+          - 'null'
+          maxLength: 256
+        uptimeSeconds:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+        restartCount:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+        cpuPercent:
+          type:
+          - number
+          - 'null'
+          minimum: 0
+        memoryBytes:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+        ambiguous:
+          type: boolean
+    DependencySnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - serviceId
+      - state
+      properties:
+        serviceId:
+          $ref: '#/components/schemas/Id'
+        state:
+          $ref: '#/components/schemas/ServiceState'
+    LogSource:
+      type: object
+      additionalProperties: false
+      required:
+      - key
+      - label
+      - provider
+      - available
+      properties:
+        key:
+          type: string
+          maxLength: 128
+        label:
+          type: string
+          maxLength: 64
+        provider:
+          type: string
+          enum:
+          - docker
+          - journald
+        available:
+          type: boolean
+    Diagnostics:
+      type: object
+      additionalProperties: false
+      required:
+      - unmappedRuntimes
+      - warnings
+      properties:
+        unmappedRuntimes:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnmappedRuntime'
+        warnings:
+          type: array
+          items:
+            type: string
+            maxLength: 240
+    UnmappedRuntime:
+      type: object
+      additionalProperties: false
+      required:
+      - provider
+      - reference
+      - project
+      - component
+      - state
+      properties:
+        provider:
+          type: string
+          enum:
+          - docker
+          - systemd
+        reference:
+          type: string
+          maxLength: 128
+        project:
+          type:
+          - string
+          - 'null'
+          maxLength: 128
+        component:
+          type:
+          - string
+          - 'null'
+          maxLength: 128
+        state:
+          type: string
+          maxLength: 64
+    LogsResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - serviceId
+      - requestedAt
+      - source
+      - records
+      - truncated
+      properties:
+        serviceId:
+          $ref: '#/components/schemas/Id'
+        requestedAt:
+          type: string
+          format: date-time
+        source:
+          type:
+          - string
+          - 'null'
+        records:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/LogRecord'
+        truncated:
+          type: boolean
+    LogRecord:
+      type: object
+      additionalProperties: false
+      required:
+      - timestamp
+      - source
+      - provider
+      - stream
+      - severity
+      - message
+      - truncated
+      properties:
+        timestamp:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        source:
+          type: string
+          maxLength: 128
+        provider:
+          type: string
+          enum:
+          - docker
+          - journald
+        stream:
+          type: string
+          enum:
+          - stdout
+          - stderr
+          - journal
+          - unknown
+        severity:
+          oneOf:
+          - type: string
+            enum:
+            - debug
+            - info
+            - notice
+            - warning
+            - error
+            - critical
+            - alert
+            - emergency
+          - type: 'null'
+        message:
+          type: string
+          maxLength: 16384
+        truncated:
+          type: boolean
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+      - error
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required:
+          - code
+          - message
+          - retryable
+          properties:
+            code:
+              type: string
+              pattern: ^[A-Z][A-Z0-9_]*$
+            message:
+              type: string
+              maxLength: 240
+            retryable:
+              type: boolean
+  responses:
+    Unauthorized:
+      description: Authentik identity header is absent.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Service or log source is not in the validated catalog.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InvalidRequest:
+      description: Query parameters are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unavailable:
+      description: Required provider data is temporarily unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
