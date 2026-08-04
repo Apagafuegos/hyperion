@@ -449,7 +449,7 @@ Important rules:
 - HTTP status classes 2, 3, and 4 establish reachability by default. A 5xx response and transport failures count as failures.
 - Redirects are not followed, so an Authentik redirect proves the route is reachable without probing through an authenticated session.
 
-Canonical reason codes are `intent_dormant`, `primary_missing`, `primary_stopped`, `primary_paused`, `primary_ambiguous`, `primary_unhealthy`, `primary_transitioning`, `required_component_missing`, `required_component_stopped`, `required_component_paused`, `required_component_ambiguous`, `required_component_unhealthy`, `optional_component_unavailable`, `route_failed`, `route_failure_pending`, `route_slow`, `provider_unavailable`, and `evidence_stale`. New codes are additive API changes.
+Canonical reason codes are `intent_dormant`, `primary_missing`, `primary_stopped`, `primary_paused`, `primary_ambiguous`, `primary_unhealthy`, `primary_transitioning`, `required_component_missing`, `required_component_stopped`, `required_component_paused`, `required_component_ambiguous`, `required_component_unhealthy`, `required_component_transitioning` (a required non-primary component is restarting), `optional_component_unavailable`, `route_failed`, `route_failure_pending`, `route_slow`, `provider_unavailable`, and `evidence_stale`. New codes are additive API changes.
 
 ## 9. Logs
 

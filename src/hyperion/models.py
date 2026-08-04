@@ -251,6 +251,7 @@ class ComponentSnapshot(ApiModel):
     restart_count: int | None = Field(ge=0)
     cpu_percent: float | None = Field(ge=0)
     memory_bytes: int | None = Field(ge=0)
+    ambiguous: bool = False
 
 
 class DependencySnapshot(ApiModel):
