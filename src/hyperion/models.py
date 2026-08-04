@@ -32,7 +32,7 @@ SystemdUnit: TypeAlias = Annotated[  # noqa: UP040 - `type` keyword would emit a
 ]
 HttpsUrl: TypeAlias = Annotated[str, Field(pattern=r"^https://")]  # noqa: UP040 - inlined by design
 
-Territory = Literal["applications", "services", "foundations"]
+TerritoryName = Literal["applications", "services", "foundations"]
 ServiceKind = Literal["web", "api", "mcp", "worker", "infrastructure"]
 ComponentRole = Literal["primary", "worker", "dependency", "sidecar", "shared"]
 ComponentState = Literal[
@@ -131,7 +131,7 @@ class Service(CatalogModel):
     service_id: Annotated[id, Field(alias="id")]
     name: Annotated[str, Field(min_length=1, max_length=64)]
     description: Annotated[str, Field(min_length=1, max_length=160)]
-    territory: Territory
+    territory: TerritoryName
     kind: ServiceKind
     intent: Literal["active", "dormant"] = "active"
     action: Action
@@ -197,8 +197,8 @@ class StateSummary(ApiModel):
     unknown: int = Field(ge=0)
 
 
-class Territory(ApiModel):  # type: ignore[no-redef]  # noqa: F811 - API component shadowing the catalog literal
-    id: Literal["applications", "services", "foundations"]
+class Territory(ApiModel):
+    id: TerritoryName
     label: Literal["Applications", "Services", "Foundations"]
     order: Literal[1, 2, 3]
 
@@ -282,7 +282,7 @@ class ServiceSnapshot(ApiModel):
     id: id
     name: str = Field(max_length=64)
     description: str = Field(max_length=160)
-    territory: Literal["applications", "services", "foundations"]
+    territory: TerritoryName
     kind: ServiceKind
     intent: Literal["active", "dormant"]
     action: ServiceAction

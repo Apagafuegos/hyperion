@@ -932,6 +932,11 @@ def test_openapi_matches_committed_contract() -> None:
 Run: `uv run pytest tests/integration/test_contract_parity.py -x -v`
 Expected: first run exposes small structural gaps (FastAPI inlining `Id`, header schema differences, `security` arrays). Fix by aligning `models.py`/route declarations. Where the generated contract is legitimately more precise (e.g., `required` on header ETag), update `schema/openapi.yaml` AND `TECHNICAL-DESIGN.md` in the same change. Do NOT weaken the test.
 
+> **Task 1.3 note (verified, not speculative):** the API models were already exercised against the committed `openapi.yaml` during Task 1.3. Expect these representational mismatches in `_normalize` (or as YAML updates, per the "generated is legitimately more precise → update the YAML" path above) rather than discovering them here:
+> - **Nullable style:** pydantic emits `anyOf: [{...}, {"type": "null"}]` where the committed YAML uses `type: [x, "null"]` on ~20 nullable fields (provider status, route, components, log records, etc.) — normalize `type` arrays to `anyOf` before comparing (or rewrite the YAML nullables).
+> - **`const` + `type` asymmetry:** pydantic emits `{"type": ..., "const": ...}` where the YAML has bare `{"const": ...}` for `schemaVersion` and the three `ServiceAction` discriminators (open/copy/none).
+> - **`minLength: 1` on `Id`:** the generated `Id` schema carries `minLength: 1` (shared catalog alias constraint) but the YAML `Id` schema only has `pattern` + `maxLength` — the YAML may be updated to include it (generated is more precise).
+
 - [ ] **Step 3: Commit**
 
 ```bash
