@@ -2,7 +2,7 @@
 
 import uvicorn
 
-from .settings import Settings  # type: ignore[import-untyped]
+from .settings import Settings
 
 if __name__ == "__main__":
     settings = Settings.from_env()

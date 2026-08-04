@@ -509,7 +509,7 @@ Error responses use a stable envelope:
 }
 ```
 
-Error codes are uppercase stable identifiers. The initial set is `AUTHENTICATION_REQUIRED`, `SNAPSHOT_UNAVAILABLE`, `SERVICE_NOT_FOUND`, `LOG_SOURCE_NOT_FOUND`, `LOG_SOURCE_UNAVAILABLE`, `INVALID_TAIL`, `INVALID_BEFORE`, `PROVIDER_TIMEOUT`, and `RESPONSE_TOO_LARGE`.
+Error codes are uppercase stable identifiers. The initial set is `AUTHENTICATION_REQUIRED`, `SNAPSHOT_UNAVAILABLE`, `SERVICE_NOT_FOUND`, `LOG_SOURCE_NOT_FOUND`, `LOG_SOURCE_UNAVAILABLE`, `INVALID_TAIL`, `INVALID_BEFORE`, `INVALID_REQUEST`, `PROVIDER_TIMEOUT`, and `RESPONSE_TOO_LARGE`.
 
 ## 11. Refresh and Performance
 
