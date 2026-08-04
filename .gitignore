@@ -25,3 +25,6 @@ coverage/
 .idea/
 *.swp
 .DS_Store
+
+# Lockfiles (global gitignore ignores *.lock; uv.lock must be committed)
+!uv.lock
