@@ -40,6 +40,16 @@ class RefreshSupervisor:
             s.route_probe.url for s in self._catalog.services if s.route_probe is not None
         )
 
+    def _probe_config(self) -> dict[str, tuple[float, float]]:
+        return {
+            s.route_probe.url: (
+                s.route_probe.timeout_ms / 1000,
+                s.route_probe.slow_after_ms / 1000,
+            )
+            for s in self._catalog.services
+            if s.route_probe is not None
+        }
+
     async def run(self) -> None:
         """Run both loops until cancelled; cycles are sequential, never queued."""
         tasks = [
@@ -73,7 +83,7 @@ class RefreshSupervisor:
         try:
             runtime_observations = await self._runtime_provider.observe(self._catalog)
             probe_observation = self._probe_observation or await self._probe_provider.observe(
-                self._probe_urls()
+                self._probe_urls(), self._probe_config()
             )
             snapshot = reconcile(self._catalog, runtime_observations, probe_observation)
             self._store.publish(snapshot)
@@ -82,6 +92,8 @@ class RefreshSupervisor:
 
     async def _probe_cycle(self) -> None:
         try:
-            self._probe_observation = await self._probe_provider.observe(self._probe_urls())
+            self._probe_observation = await self._probe_provider.observe(
+                self._probe_urls(), self._probe_config()
+            )
         except Exception as exc:  # keep the last probe observation
             logger.error("probe refresh cycle failed: %s", exc)

@@ -299,8 +299,14 @@ class RuntimeProvider(Protocol):
     ) -> list[LogRecordIn]: ...
 
 class RouteProbeProvider(Protocol):
-    async def observe(self, probes: tuple[str, ...]) -> ProbeObservation: ...
+    async def observe(
+        self,
+        probes: tuple[str, ...],
+        config: dict[str, tuple[float, float]] | None = None,
+    ) -> ProbeObservation: ...
 ```
+
+The probe `observe` accepts an optional per-URL tuning map of `url -> (timeout_s, slow_after_s)` built from the catalog's `timeoutMs`/`slowAfterMs` (defaults `(3.0, 1.2)`); providers may ignore it. A probe that succeeds within the timeout but exceeds `slowAfterMs` is evidence state `slow` with a zero failure streak.
 
 `ProviderObservation` contains `provider`, `state`, `observed_at`, normalized component evidence keyed by `(service_id, selector)`, unmapped runtimes, conflicts, and a sanitized provider error. Provider exceptions are captured at the provider boundary and do not cross into the reconciler.
 

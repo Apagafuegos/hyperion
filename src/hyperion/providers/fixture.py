@@ -67,7 +67,12 @@ class FixtureProbeProvider:
     def __init__(self, probes_path: Path) -> None:
         self._raw: dict[str, Any] = json.loads(probes_path.read_text(encoding="utf-8"))
 
-    async def observe(self, probes: tuple[str, ...]) -> ProbeObservation:
+    async def observe(
+        self,
+        probes: tuple[str, ...],
+        config: dict[str, tuple[float, float]] | None = None,
+    ) -> ProbeObservation:
+        del config  # fixture results carry their own states; per-URL tuning not needed
         now = datetime.now(UTC)
         by_url = {result["url"]: result for result in self._raw["results"]}
         results: list[ProbeEvidence] = []

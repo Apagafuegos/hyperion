@@ -83,11 +83,21 @@ class DockerProvider:
     async def _run_sync(self, fn: Callable[[], Any]) -> Any:
         return await asyncio.get_running_loop().run_in_executor(self._pool, fn)
 
+    async def _close_client(self, client: Any) -> None:
+        close = getattr(client, "close", None)
+        if close is None:
+            return
+        try:
+            await self._run_sync(close)
+        except Exception as exc:  # closing must never mask observation results
+            logger.debug("docker client close failed: %s", exc)
+
     async def close(self) -> None:
         self._pool.shutdown(wait=False)
 
     async def observe(self, catalog: Catalog) -> ProviderObservation:
         observed_at = datetime.now(UTC)
+        client: Any = None
         try:
             client = await self._run_sync(lambda: self._client_factory(self._host))
             containers = await self._run_sync(
@@ -212,6 +222,9 @@ class DockerProvider:
                 observed_at=observed_at,
                 error=str(exc)[:240],
             )
+        finally:
+            if client is not None:
+                await self._close_client(client)
 
     def _build_evidence(
         self,
@@ -268,19 +281,19 @@ class DockerProvider:
         self, binding: LogBinding, tail: int, before: datetime | None
     ) -> list[LogRecordIn]:
         until = int(before.timestamp()) if before is not None else None
+        client: Any = None
         try:
             client = await self._run_sync(lambda: self._client_factory(self._host))
             container = await self._run_sync(lambda: client.containers.get(binding.reference))
             tty = bool((container.attrs.get("Config") or {}).get("Tty"))
-        except Exception as exc:
-            raise RuntimeError(f"docker log read failed: {exc}") from exc
 
-        records: list[LogRecordIn] = []
-        streams: list[tuple[bool, bool, Literal["stdout", "stderr", "unknown"]]] = (
-            [(True, True, "unknown")] if tty else [(True, False, "stdout"), (False, True, "stderr")]
-        )
-        for stdout, stderr, stream in streams:
-            try:
+            records: list[LogRecordIn] = []
+            streams: list[tuple[bool, bool, Literal["stdout", "stderr", "unknown"]]] = (
+                [(True, True, "unknown")]
+                if tty
+                else [(True, False, "stdout"), (False, True, "stderr")]
+            )
+            for stdout, stderr, stream in streams:
                 raw = await self._run_sync(
                     partial(
                         container.logs,
@@ -292,11 +305,14 @@ class DockerProvider:
                         stream=False,
                     )
                 )
-            except Exception as exc:
-                raise RuntimeError(f"docker log read failed: {exc}") from exc
-            records.extend(_parse_log_lines(raw, binding.source, stream))
-        records.sort(key=lambda record: record.timestamp or _SENTINEL)
-        return records[-tail:]
+                records.extend(_parse_log_lines(raw, binding.source, stream))
+            records.sort(key=lambda record: record.timestamp or _SENTINEL)
+            return records[-tail:]
+        except Exception as exc:
+            raise RuntimeError(f"docker log read failed: {exc}") from exc
+        finally:
+            if client is not None:
+                await self._close_client(client)
 
 
 def _parse_log_lines(

@@ -20,6 +20,7 @@ logger = logging.getLogger("hyperion.probe")
 BODY_LIMIT = 1024
 USER_AGENT = "Hyperion/1"
 _CONCURRENT = 4
+DEFAULT_PROBE_CONFIG: tuple[float, float] = (3.0, 1.2)  # (timeout_s, slow_after_s)
 
 ErrorKind = Literal["dns", "timeout", "tls", "connection", "http", "unknown"]
 
@@ -66,7 +67,12 @@ class ProbeProvider:
             await self._client.aclose()
             self._client = None
 
-    async def observe(self, probes: tuple[str, ...]) -> ProbeObservation:
+    async def observe(
+        self,
+        probes: tuple[str, ...],
+        config: dict[str, tuple[float, float]] | None = None,
+    ) -> ProbeObservation:
+        """Probe URLs; per-URL (timeout_s, slow_after_s) override the defaults."""
         observed_at = datetime.now(UTC)
         try:
             client = await self._http()
@@ -74,7 +80,12 @@ class ProbeProvider:
 
             async def _probe(url: str) -> ProbeEvidence:
                 async with semaphore:
-                    return await self._probe_one(client, url, observed_at)
+                    timeout_seconds, slow_after_seconds = (config or {}).get(
+                        url, DEFAULT_PROBE_CONFIG
+                    )
+                    return await self._probe_one(
+                        client, url, observed_at, timeout_seconds, slow_after_seconds
+                    )
 
             results = list(await asyncio.gather(*(_probe(url) for url in probes)))
         except Exception as exc:  # provider boundary
@@ -93,7 +104,12 @@ class ProbeProvider:
         )
 
     async def _probe_one(
-        self, client: httpx.AsyncClient, url: str, observed_at: datetime
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        observed_at: datetime,
+        timeout_seconds: float,
+        slow_after_seconds: float,
     ) -> ProbeEvidence:
         started = time.monotonic()
         status_code: int | None = None
@@ -101,7 +117,10 @@ class ProbeProvider:
         accepted = False
         try:
             async with client.stream(
-                "GET", url, headers={"User-Agent": USER_AGENT}
+                "GET",
+                url,
+                headers={"User-Agent": USER_AGENT},
+                timeout=httpx.Timeout(timeout_seconds),
             ) as response:
                 size = 0
                 async for chunk in response.aiter_bytes():
@@ -130,7 +149,10 @@ class ProbeProvider:
             self._streaks[url] = 0
         else:
             self._streaks[url] = self._streaks.get(url, 0) + 1
-        state: Literal["reachable", "failed"] = "reachable" if accepted else "failed"
+        if accepted and latency_ms > slow_after_seconds * 1000:
+            state: Literal["reachable", "slow", "failed"] = "slow"
+        else:
+            state = "reachable" if accepted else "failed"
         return ProbeEvidence(
             url=url,
             state=state,

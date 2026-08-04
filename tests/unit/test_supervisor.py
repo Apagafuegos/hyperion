@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from hyperion.catalog import load_catalog
+from hyperion.providers.base import ProbeObservation
 from hyperion.providers.fixture import FixtureProbeProvider, FixtureRuntimeProvider
 from hyperion.services.snapshots import SnapshotStore
 from hyperion.services.supervisor import RefreshSupervisor
@@ -14,6 +16,27 @@ FIXTURES = Path(__file__).parents[1] / "fixtures"
 
 def catalog():
     return load_catalog(FIXTURES / "fixture-services.yaml")
+
+
+def probe_config(cat) -> dict[str, tuple[float, float]]:
+    return {
+        s.route_probe.url: (s.route_probe.timeout_ms / 1000, s.route_probe.slow_after_ms / 1000)
+        for s in cat.services
+        if s.route_probe is not None
+    }
+
+
+class RecordingProbe:
+    """Records (probes, config) per observe call; returns an empty observation."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[tuple[str, ...], dict[str, tuple[float, float]] | None]] = []
+
+    async def observe(self, probes, config=None):
+        self.calls.append((probes, config))
+        return ProbeObservation(
+            provider="probe", state="available", observed_at=datetime.now(UTC), results=[]
+        )
 
 
 class FailingRuntime:
@@ -72,6 +95,40 @@ async def test_probe_cycle_with_failing_provider_does_not_raise() -> None:
     )
     await supervisor._probe_cycle()
     assert supervisor._probe_observation is None
+
+
+async def test_probe_cycle_passes_catalog_probe_config() -> None:
+    probe = RecordingProbe()
+    supervisor = RefreshSupervisor(
+        runtime_provider=FixtureRuntimeProvider(
+            FIXTURES / "fixture-evidence.json", FIXTURES / "fixture-logs.json"
+        ),
+        probe_provider=probe,
+        catalog=catalog(),
+        store=SnapshotStore(),
+    )
+    await supervisor._probe_cycle()
+    probes, config = probe.calls[0]
+    expected = probe_config(catalog())
+    assert probes == tuple(expected)
+    assert config == expected
+
+
+async def test_runtime_cycle_passes_catalog_probe_config() -> None:
+    probe = RecordingProbe()
+    supervisor = RefreshSupervisor(
+        runtime_provider=FixtureRuntimeProvider(
+            FIXTURES / "fixture-evidence.json", FIXTURES / "fixture-logs.json"
+        ),
+        probe_provider=probe,
+        catalog=catalog(),
+        store=SnapshotStore(),
+    )
+    await supervisor._runtime_cycle()
+    probes, config = probe.calls[0]
+    expected = probe_config(catalog())
+    assert probes == tuple(expected)
+    assert config == expected
 
 
 async def test_cycle_recovers_and_publishes_after_transient_failure() -> None:

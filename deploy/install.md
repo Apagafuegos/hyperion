@@ -53,8 +53,8 @@ EOF
 6. Start the Docker socket proxy (pinned image + digest):
 
        docker compose -f deploy/docker-proxy.compose.yaml up -d
-       # The digest is already pinned in the compose file; after any image
-       # change, re-verify with:
+       # The digest is pinned in the compose file; if you upgrade the proxy,
+       # re-pin the digest with:
        docker image inspect --format '{{index .RepoDigests 0}}' \
          tecnativa/docker-socket-proxy:v0.5.0
 

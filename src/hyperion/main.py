@@ -39,6 +39,7 @@ CSP = (
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 FIXTURES_DIR = Path(__file__).parents[2] / "tests" / "fixtures"
+TEMPLATES = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 def _configure_logging(settings: Settings) -> None:
@@ -120,6 +121,17 @@ def _probe_urls(catalog: Catalog) -> tuple[str, ...]:
     return tuple(s.route_probe.url for s in catalog.services if s.route_probe is not None)
 
 
+def _probe_config(catalog: Catalog) -> dict[str, tuple[float, float]]:
+    return {
+        s.route_probe.url: (
+            s.route_probe.timeout_ms / 1000,
+            s.route_probe.slow_after_ms / 1000,
+        )
+        for s in catalog.services
+        if s.route_probe is not None
+    }
+
+
 def _resolve_log_references(
     store: SnapshotStore,
 ) -> Callable[[], dict[tuple[str, str], str]]:
@@ -156,7 +168,7 @@ async def _run_cycle(
     try:
         runtime_obs, probe_obs = await asyncio.gather(
             runtime_provider.observe(catalog),
-            probe_provider.observe(_probe_urls(catalog)),
+            probe_provider.observe(_probe_urls(catalog), _probe_config(catalog)),
         )
     except Exception as exc:  # provider boundary
         logger.error("initial refresh failed: %s", exc)
@@ -217,8 +229,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(
                 401, "AUTHENTICATION_REQUIRED", "Authentik identity header is required.", False
             )
-        templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-        return cast(Response, templates.TemplateResponse(request, "index.html", {}))
+        return cast(Response, TEMPLATES.TemplateResponse(request, "index.html", {}))
 
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

@@ -123,10 +123,14 @@ def make_client(containers: list[FakeContainer] | None = None):
             self._base_url = base_url
             self._containers = containers
             self._collection = _FakeCollection(self._containers)
+            self.closed = False
 
         @property
         def containers(self):
             return self._collection
+
+        def close(self) -> None:
+            self.closed = True
 
     class _FakeCollection:
         def __init__(self, containers: list) -> None:
@@ -347,6 +351,24 @@ def test_observe_reuses_single_client() -> None:
     provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
     run(provider.observe(catalog))
     assert len(created) == 1
+
+
+def test_observe_closes_client() -> None:
+    catalog = load_catalog(FIXTURES / "fixture-services.yaml")
+    factory, created = make_client()
+    provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
+    run(provider.observe(catalog))
+    assert created[0].closed is True
+
+
+def test_read_logs_closes_client() -> None:
+    factory, created = make_client()
+    provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
+    binding = LogBinding(
+        provider="docker", service_id="authentik", source="server", reference="authentik-server-1"
+    )
+    run(provider.read_logs(binding, tail=10, before=None))
+    assert created[0].closed is True
 
 
 def test_stats_collected_concurrently() -> None:

@@ -9,6 +9,7 @@ import time
 
 import httpx
 
+from hyperion.providers.base import ProbeObservation
 from hyperion.providers.probe import ProbeProvider
 
 
@@ -242,3 +243,72 @@ def test_close_closes_client() -> None:
 def test_close_without_client_noop() -> None:
     provider = ProbeProvider()
     asyncio.run(provider.close())
+
+
+def test_slow_state_when_latency_exceeds_threshold() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.01)
+        return httpx.Response(200)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = ProbeProvider(client_factory=lambda: client)
+    observation = asyncio.run(
+        provider.observe(
+            ("https://alpha.example.com",),
+            config={"https://alpha.example.com": (3.0, 0.000001)},
+        )
+    )
+    result = observation.results[0]
+    assert result.state == "slow"
+    assert result.consecutive_failures == 0
+    assert result.latency_ms is not None and result.latency_ms > 0
+
+
+def test_config_applies_per_url() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.01)
+        return httpx.Response(200)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = ProbeProvider(client_factory=lambda: client)
+    observation = asyncio.run(
+        provider.observe(
+            ("https://alpha.example.com", "https://beta.example.com"),
+            config={"https://alpha.example.com": (3.0, 0.000001)},
+        )
+    )
+    alpha, beta = observation.results
+    assert alpha.state == "slow"
+    assert beta.state == "reachable"  # no config entry -> default threshold
+
+
+def test_per_url_timeout_config_honored() -> None:
+    async def run() -> tuple[ProbeObservation, float]:
+        async def handler(
+            reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        ) -> None:
+            try:
+                while await reader.read(1024):
+                    pass
+            finally:
+                writer.close()
+
+        server = await asyncio.start_server(handler, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        url = f"http://127.0.0.1:{port}/"
+        client = httpx.AsyncClient()
+        provider = ProbeProvider(client_factory=lambda: client)
+        started = time.monotonic()
+        try:
+            observation = await provider.observe((url,), config={url: (0.1, 1.2)})
+        finally:
+            server.close()
+            await client.aclose()
+            await server.wait_closed()
+        return observation, time.monotonic() - started
+
+    observation, elapsed = asyncio.run(run())
+    result = observation.results[0]
+    assert result.state == "failed"
+    assert result.error == "timeout"
+    assert elapsed < 2.0, f"per-request timeout not applied: {elapsed:.2f}s"

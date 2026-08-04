@@ -103,4 +103,8 @@ class RuntimeProvider(Protocol):
 
 
 class RouteProbeProvider(Protocol):
-    async def observe(self, probes: tuple[str, ...]) -> ProbeObservation: ...
+    async def observe(
+        self,
+        probes: tuple[str, ...],
+        config: dict[str, tuple[float, float]] | None = None,
+    ) -> ProbeObservation: ...
