@@ -48,6 +48,10 @@ def reconcile(
 ) -> AtlasSnapshot:
     """Build one immutable snapshot from the catalog and provider evidence."""
     now = now or datetime.now(UTC)
+    # The supervisor guarantees at most one observation per provider
+    # (CombinedRuntimeProvider emits exactly one docker and one systemd
+    # observation), so first-wins status selection and last-write-wins
+    # evidence joins cannot diverge; duplicates are a caller violation.
     docker_obs = next((o for o in runtime_observations if o.provider == "docker"), None)
     systemd_obs = next((o for o in runtime_observations if o.provider == "systemd"), None)
 
@@ -61,10 +65,34 @@ def reconcile(
         "systemd": systemd_obs is not None and systemd_obs.state != "unavailable",
         "probe": probe_observation.state != "unavailable",
     }
+    # A degraded provider inspects only part of the runtime: a declared
+    # component without evidence may simply have been missed, so absence
+    # may only be concluded "missing" when the provider observation was
+    # exactly `available`. Anything else maps absence to "unknown".
+    provider_available = {
+        "docker": docker_obs is not None and docker_obs.state == "available",
+        "systemd": systemd_obs is not None and systemd_obs.state == "available",
+    }
+    # Missing components are stamped with the observation time so staleness
+    # surfaces instead of being masked by the snapshot generation time.
+    provider_observed_at = {
+        "docker": docker_obs.observed_at if docker_obs is not None else None,
+        "systemd": systemd_obs.observed_at if systemd_obs is not None else None,
+    }
 
     services: list[ServiceSnapshot] = []
     for service in catalog.services:
-        services.append(_build_service(service, evidence, probe_observation, provider_ok, now))
+        services.append(
+            _build_service(
+                service,
+                evidence,
+                probe_observation,
+                provider_ok,
+                provider_available,
+                provider_observed_at,
+                now,
+            )
+        )
     declared = {service.service_id: service.dependencies for service in catalog.services}
     _link_dependencies(services, declared)
 
@@ -94,6 +122,8 @@ def _build_service(
     evidence: dict[tuple[str, str], ComponentEvidence],
     probe_observation: ProbeObservation,
     provider_ok: dict[str, bool],
+    provider_available: dict[str, bool],
+    provider_observed_at: dict[str, datetime | None],
     now: datetime,
 ) -> ServiceSnapshot:
     components: list[ComponentSnapshot] = []
@@ -106,7 +136,7 @@ def _build_service(
         label = declared_component.label or declared_component.selector
         if component_evidence is None:
             component_state: ComponentState = (
-                "missing" if provider_ok[provider_name] else "unknown"
+                "missing" if provider_available[provider_name] else "unknown"
             )
             components.append(
                 ComponentSnapshot(
@@ -118,7 +148,7 @@ def _build_service(
                     required=declared_component.required,
                     state=component_state,
                     health="unknown",
-                    observed_at=now,
+                    observed_at=provider_observed_at[provider_name] or now,
                     image=None,
                     uptime_seconds=None,
                     restart_count=None,
