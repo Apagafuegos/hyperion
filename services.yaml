@@ -1,0 +1,196 @@
+version: 1
+
+services:
+  - id: t3-code
+    name: T3 Code
+    description: Browser-based development workspace
+    territory: applications
+    kind: web
+    action:
+      type: open
+      url: https://t3.carlos-santos.es
+    runtime:
+      provider: systemd
+      components:
+        - selector: t3code.service
+          role: primary
+          required: true
+    routeProbe:
+      method: GET
+      url: https://t3.carlos-santos.es
+      acceptedStatusClasses: [2, 3, 4]
+    logs:
+      sources: [t3code.service]
+
+  - id: authentik
+    name: Authentik
+    description: Identity and access gateway
+    territory: applications
+    kind: web
+    action:
+      type: open
+      url: https://auth.carlos-santos.es
+    runtime:
+      provider: docker-compose
+      project: authentik
+      components:
+        - selector: server
+          role: primary
+          required: true
+        - selector: worker
+          role: worker
+          required: true
+        - selector: postgresql
+          role: dependency
+          required: true
+    routeProbe:
+      method: GET
+      url: https://auth.carlos-santos.es
+      acceptedStatusClasses: [2, 3, 4]
+    logs:
+      sources: [server, worker]
+
+  - id: librechat
+    name: LibreChat
+    description: Conversational AI workspace
+    territory: applications
+    kind: web
+    action:
+      type: open
+      url: https://ai.carlos-santos.es
+    runtime:
+      provider: docker-compose
+      project: librechat
+      components:
+        - selector: librechat
+          role: primary
+          required: true
+        - selector: mongodb
+          role: dependency
+          required: true
+    routeProbe:
+      method: GET
+      url: https://ai.carlos-santos.es
+      acceptedStatusClasses: [2, 3, 4]
+    logs:
+      sources: [librechat, mongodb]
+
+  - id: rarecord
+    name: RaeCord
+    description: Personal application
+    territory: applications
+    kind: web
+    action:
+      type: open
+      url: https://rare.carlos-santos.es
+    runtime:
+      provider: docker-compose
+      project: rarecord
+      components:
+        - selector: app
+          role: primary
+          required: true
+        - selector: postgres
+          role: dependency
+          required: true
+    routeProbe:
+      method: GET
+      url: https://rare.carlos-santos.es
+      acceptedStatusClasses: [2, 3, 4]
+    logs:
+      sources: [app, postgres]
+
+  - id: langfuse
+    name: Langfuse
+    description: LLM observability and prompt operations
+    territory: applications
+    kind: web
+    action:
+      type: open
+      url: https://langfuse.carlos-santos.es
+    runtime:
+      provider: docker-compose
+      project: langfuse
+      components:
+        - selector: langfuse
+          role: primary
+          required: true
+        - selector: langfuse-worker
+          role: worker
+          required: false
+        - selector: redis
+          role: dependency
+          required: true
+        - selector: clickhouse
+          role: dependency
+          required: true
+        - selector: minio
+          role: dependency
+          required: true
+    routeProbe:
+      method: GET
+      url: https://langfuse.carlos-santos.es
+      acceptedStatusClasses: [2, 3, 4]
+    logs:
+      sources: [langfuse, langfuse-worker]
+
+  - id: mcp-observatory
+    name: MCP Observatory
+    description: Docker runtime observatory
+    territory: applications
+    kind: web
+    action:
+      type: open
+      url: https://mcp.carlos-santos.es
+    runtime:
+      provider: docker-compose
+      project: mcp_observatory
+      components:
+        - selector: observatory
+          role: primary
+          required: true
+    routeProbe:
+      method: GET
+      url: https://mcp.carlos-santos.es
+      acceptedStatusClasses: [2, 3, 4]
+    logs:
+      sources: [observatory]
+
+  - id: the-vault
+    name: The Vault
+    description: Personal MCP knowledge service
+    territory: services
+    kind: mcp
+    action:
+      type: copy
+      url: https://mcp.carlos-santos.es/the-vault/mcp
+    runtime:
+      provider: docker-compose
+      project: the-vault
+      components:
+        - selector: the-vault
+          role: primary
+          required: true
+    routeProbe:
+      method: GET
+      url: https://mcp.carlos-santos.es/the-vault/mcp
+      acceptedStatusClasses: [2, 3, 4]
+    logs:
+      sources: [the-vault]
+
+  - id: shared-postgres
+    name: Shared PostgreSQL
+    description: Shared relational database
+    territory: foundations
+    kind: infrastructure
+    action:
+      type: none
+    runtime:
+      provider: docker-compose
+      project: postgres
+      components:
+        - selector: postgres
+          role: primary
+          required: true
+    logs:
+      sources: [postgres]
