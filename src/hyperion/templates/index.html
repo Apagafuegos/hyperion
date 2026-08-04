@@ -2,9 +2,78 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Hyperion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hyperion — Service Atlas</title>
+<meta name="color-scheme" content="light">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'">
+<link rel="stylesheet" href="/static/assets/styles.css">
 </head>
 <body>
-<p>Hyperion atlas — client build pending (Task 1.10).</p>
+<header class="global-header">
+  <div class="header-inner">
+    <a class="brand" href="/" aria-label="Hyperion home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <strong class="brand-title">Hyperion</strong>
+    </a>
+    <label class="global-search">
+      <span class="search-icon" aria-hidden="true"></span>
+      <input id="search" type="search" placeholder="Find services, endpoints…" autocomplete="off" aria-label="Search services">
+      <kbd class="search-key">⌘ K</kbd>
+    </label>
+    <nav class="global-nav" aria-label="Territories">
+      <a class="nav-destination" href="#applications" data-territory-link="applications">Applications</a>
+      <a class="nav-destination" href="#services" data-territory-link="services">Services</a>
+      <a class="nav-destination" href="#foundations" data-territory-link="foundations">Foundations</a>
+    </nav>
+  </div>
+</header>
+
+<main class="atlas-main">
+  <p class="workspace-statement">Everything deployed, mapped to one calm surface.</p>
+
+  <section class="atlas-frame" aria-label="Service atlas">
+    <aside class="bearings-rail" aria-label="Fleet bearings">
+      <div id="bearings"></div>
+      <p class="bearings-note">Service states, not containers.</p>
+      <div id="diagnostics-keycap" class="diagnostics-keycap" hidden></div>
+    </aside>
+    <div class="latitudes" id="latitudes" aria-live="polite"></div>
+  </section>
+
+  <details class="log-drawer" id="log-drawer">
+    <summary>
+      <strong>Logs</strong>
+      <span class="log-drawer-subject" id="log-subject">Select a service to inspect its logs.</span>
+      <span class="open-label">Open logs</span>
+    </summary>
+    <div class="log-controls">
+      <label>Source
+        <select id="log-source"></select>
+      </label>
+      <label>Tail
+        <select id="log-tail">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+        </select>
+      </label>
+      <button type="button" id="log-refresh" class="button-route">Refresh</button>
+      <span class="log-state" id="log-state" role="status"></span>
+    </div>
+    <div id="log-rows" class="log-rows"></div>
+  </details>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+</main>
+
+<noscript>
+  <section class="noscript-note">
+    Hyperion requires JavaScript to render the live atlas. The read-only API
+    remains available at <code>/api/v1/snapshot</code> with the Authentik identity header.
+  </section>
+</noscript>
+
+<script type="module" src="/static/assets/atlas.js"></script>
 </body>
 </html>
