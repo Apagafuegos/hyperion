@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install python dependencies
+        run: uv sync --frozen
+      - name: Install node dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Ruff
+        run: uv run ruff check src tests
+      - name: Mypy
+        run: uv run mypy src
+      - name: Pytest (unit + integration + contract parity)
+        run: uv run pytest -q
+      - name: ESLint and tsc
+        run: npm run lint
+      - name: Vitest
+        run: npm test
+      - name: Install chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser tests
+        run: npx playwright test

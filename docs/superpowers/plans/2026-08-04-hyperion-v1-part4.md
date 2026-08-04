@@ -352,11 +352,11 @@ Expected: PASS.
 ```bash
 # 1. Docker POST denied through the proxy
 curl -s -X POST http://127.0.0.1:2375/v1.41/containers/create -d '{"Image":"nginx"}' -o /dev/null -w "%{http_code}\n"
-# Expected: 405 (method denied), NOT 201.
+# Expected: 403 (Tecnativa proxy denies unallowed methods with 403 Forbidden), NOT 201.
 
 # 2. Mutation attempt through the proxy
 curl -s -X POST http://127.0.0.1:2375/v1.41/containers/c1/restart -o /dev/null -w "%{http_code}\n"
-# Expected: 405.
+# Expected: 403.
 
 # 3. No environment exposure via the API (already covered by tests above).
 ```
@@ -436,16 +436,18 @@ uv run mypy src
 
 Checklist (from TECHNICAL-DESIGN.md §16.2 — every item must pass):
 
-- [ ] Committed production catalog (`services.yaml`) validates structurally and semantically.
-- [ ] Every declared current component resolves exactly once (live snapshot: no `missing` for declared selectors); unexpected containers reported as `diagnostics.unmappedRuntimes`.
-- [ ] T3 Code state and journal logs work through the systemd provider (live check in Task 2.5/3.1).
-- [ ] Every Docker-backed service exposes correct component state and allowlisted recent logs.
-- [ ] Public launch/copy actions match the Caddy routes (compare `action.url` values against the live Caddyfile).
-- [ ] State derivation passes the table-driven test for every rule and precedence collision (`tests/unit/test_state_rules.py`).
-- [ ] Provider loss yields partial/stale/Unknown states without losing the last valid snapshot (fixture: `test_reconcile_provider_unavailable_yields_unknown`; live: stop the docker proxy briefly and confirm snapshots continue serving with `fresh: false` and Unknown states).
-- [ ] No API returns environment values, raw inspect payloads, credentials, or arbitrary host data (`test_security.py` + manual live spot-check).
-- [ ] Docker POST requests through the proxy are demonstrably denied (Task 3.3 step 3 — `405`).
-- [ ] UI meets the behavior, responsive, focus, reduced-motion, and visual commitments in `DESIGN.md`.
+- [x] Committed production catalog (`services.yaml`) validates structurally and semantically.
+- [x] Every declared current component resolves exactly once (live snapshot: no `missing` for declared selectors); unexpected containers reported as `diagnostics.unmappedRuntimes`.
+- [x] T3 Code state and journal logs work through the systemd provider (live check in Task 2.5/3.1).
+- [x] Every Docker-backed service exposes correct component state and allowlisted recent logs.
+- [x] Public launch/copy actions match the Caddy routes (compare `action.url` values against the live Caddyfile).
+- [x] State derivation passes the table-driven test for every rule and precedence collision (`tests/unit/test_state_rules.py`).
+- [x] Provider loss yields partial/stale/Unknown states without losing the last valid snapshot (fixture: `test_reconcile_provider_unavailable_yields_unknown`; live: stop the docker proxy briefly and confirm snapshots continue serving with `fresh: false` and Unknown states).
+- [x] No API returns environment values, raw inspect payloads, credentials, or arbitrary host data (`test_security.py` + manual live spot-check).
+- [x] Docker POST requests through the proxy are demonstrably denied (Task 3.3 step 3 — `403`; the Tecnativa proxy returns 403 Forbidden for unallowed methods, not 405).
+- [x] UI meets the behavior, responsive, focus, reduced-motion, and visual commitments in `DESIGN.md`.
+
+**Execution results (Task 3.4, 2026-08-04):** all gates green — `uv run pytest -q` (171 passed), `uv run ruff check src tests` (clean), `uv run mypy src` (clean), `npm run lint` (clean), `npm test` (13 passed), `npm run build` (ok), `npx playwright test` (26 passed). Live §16.2 checks: catalog loads via `load_catalog`; live snapshot 8/8 services resolved, zero `missing`/`unknown`, `diagnostics.unmappedRuntimes` = docker-proxy only; t3-code systemd component `running`/`healthy` with 50 journald records; langfuse (5 components) and authentik (3 components) docker states correct with allowlisted bounded logs (`tail` restricted to 50/100/250/500, other values 422); catalog action URLs match the six Caddyfile hosts (t3/auth/ai/rare/langfuse/mcp); `test_state_rules.py` 32 passed; live outage (docker-proxy stopped 25s): snapshot kept serving HTTP 200 with `fresh: false`, docker provider `unavailable`, 7 docker-backed services `unknown` while systemd-backed t3-code stayed `reachable`; recovery within ~25s of restart (all 8 `reachable`, `fresh: true`); `test_security.py` 7 passed and live snapshot grep found no env values, credentials, raw inspect keys, or keys; Docker POST `/containers/create` denied with HTTP 403 (verified against the live proxy on 127.0.0.1:2375) while read GETs return 200; visual comparison found one drift — the desktop `.atlas-frame` grid auto-placed `.latitudes` into row 2 (bands rendered below the fold, first band at y≈795); fixed by pinning `.latitudes`/`.bearings-rail` to `grid-row: 1` in `frontend/atlas.css`; after rebuild the first band sits at y≈203 and the bearings rail aligns with the bands; browser suite re-run 26/26 pass; clean-install (`rm -rf .venv node_modules` → `uv sync --frozen && npm ci && npm run build && uv run pytest -q && npm test`) all green.
 
 - [ ] **Step 3: Visual comparison against the approved prototype**
 

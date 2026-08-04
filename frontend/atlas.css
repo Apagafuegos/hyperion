@@ -178,8 +178,8 @@ body {
   border-top: 1px solid var(--carbon-ink);
   border-bottom: 1px solid var(--carbon-ink);
 }
-.latitudes { grid-column: 1; }
-.bearings-rail { grid-column: 2; }
+.latitudes { grid-column: 1; grid-row: 1; }
+.bearings-rail { grid-column: 2; grid-row: 1; }
 
 /* Latitude bands */
 .band { border-top: 1px solid var(--weathered-rule); scroll-margin-top: 90px; }
