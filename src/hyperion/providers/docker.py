@@ -37,6 +37,9 @@ _HEALTH_MAP: dict[str, HealthState] = {
     "unhealthy": "unhealthy",
 }
 
+# Aware sentinel for log sorting: sorts last and never mixes naive/aware datetimes.
+_SENTINEL = datetime(9999, 12, 31, 23, 59, 59, tzinfo=UTC)
+
 
 def _parse_timestamp(value: str) -> datetime | None:
     try:
@@ -86,7 +89,104 @@ class DockerProvider:
         observed_at = datetime.now(UTC)
         try:
             client = await self._run_sync(lambda: self._client_factory(self._host))
-            containers = await self._run_sync(lambda: client.containers.list(all=True))
+            containers = await self._run_sync(
+                lambda: client.containers.list(all=True, ignore_removed=True)
+            )
+
+            owned: dict[tuple[str, str], str] = {}
+            for service in catalog.services:
+                runtime = service.runtime
+                if runtime.provider != "docker-compose":
+                    continue
+                for component in runtime.components:
+                    owned[(runtime.project, component.selector)] = component.selector
+
+            matches: dict[tuple[str, str], list[dict[str, Any]]] = {}
+            unmapped: list[UnmappedRuntimeEvidence] = []
+            for container in containers:
+                attrs = container.attrs
+                labels = attrs.get("Config", {}).get("Labels", {}) or {}
+                project = labels.get("com.docker.compose.project")
+                service_name = labels.get("com.docker.compose.service")
+                reference = (attrs.get("Name") or "/").lstrip("/")
+                state = str(attrs.get("State", {}).get("Status", "unknown"))[:64]
+                if project is not None and service_name is not None:
+                    if (project, service_name) in owned:
+                        matches.setdefault((project, service_name), []).append(attrs)
+                    else:
+                        unmapped.append(
+                            UnmappedRuntimeEvidence(
+                                provider="docker",
+                                reference=reference[:128],
+                                project=project[:128],
+                                component=service_name[:128],
+                                state=state,
+                            )
+                        )
+                else:
+                    unmapped.append(
+                        UnmappedRuntimeEvidence(
+                            provider="docker",
+                            reference=reference[:128],
+                            project=None,
+                            component=None,
+                            state=state,
+                        )
+                    )
+
+            conflicts: list[str] = []
+            components: list[ComponentEvidence] = []
+            for service in catalog.services:
+                runtime = service.runtime
+                if runtime.provider != "docker-compose":
+                    continue
+                for declared in runtime.components:
+                    attrs_list = matches.get((runtime.project, declared.selector), [])
+                    if len(attrs_list) == 0:
+                        components.append(
+                            ComponentEvidence(
+                                service_id=service.service_id,
+                                selector=declared.selector,
+                                provider="docker",
+                                state="missing",
+                                health="unknown",
+                                observed_at=observed_at,
+                            )
+                        )
+                        continue
+                    if len(attrs_list) > 1:
+                        conflicts.append(
+                            f"{runtime.project}/{declared.selector}: "
+                            f"{len(attrs_list)} containers matched"
+                        )
+                        components.append(
+                            ComponentEvidence(
+                                service_id=service.service_id,
+                                selector=declared.selector,
+                                provider="docker",
+                                state="unknown",
+                                health="unknown",
+                                reference=str(attrs_list[0].get("Id", ""))[:12],
+                                ambiguous=True,
+                                observed_at=observed_at,
+                            )
+                        )
+                        continue
+                    components.append(
+                        await self._build_evidence(service, declared, attrs_list[0], observed_at)
+                    )
+
+            observation_state: Literal["available", "degraded", "unavailable"] = (
+                "degraded" if conflicts else "available"
+            )
+            return ProviderObservation(
+                provider="docker",
+                state=observation_state,
+                observed_at=observed_at,
+                components=components,
+                unmapped=unmapped,
+                conflicts=conflicts,
+            )
         except Exception as exc:  # provider boundary
             logger.warning("docker observation failed: %s", exc)
             return ProviderObservation(
@@ -95,101 +195,6 @@ class DockerProvider:
                 observed_at=observed_at,
                 error=str(exc)[:240],
             )
-
-        owned: dict[tuple[str, str], str] = {}
-        for service in catalog.services:
-            runtime = service.runtime
-            if runtime.provider != "docker-compose":
-                continue
-            for component in runtime.components:
-                owned[(runtime.project, component.selector)] = component.selector
-
-        matches: dict[tuple[str, str], list[dict[str, Any]]] = {}
-        unmapped: list[UnmappedRuntimeEvidence] = []
-        for container in containers:
-            attrs = container.attrs
-            labels = attrs.get("Config", {}).get("Labels", {}) or {}
-            project = labels.get("com.docker.compose.project")
-            service_name = labels.get("com.docker.compose.service")
-            reference = (attrs.get("Name") or "/").lstrip("/")
-            state = str(attrs.get("State", {}).get("Status", "unknown"))[:64]
-            if project is not None and service_name is not None:
-                if (project, service_name) in owned:
-                    matches.setdefault((project, service_name), []).append(attrs)
-                else:
-                    unmapped.append(
-                        UnmappedRuntimeEvidence(
-                            provider="docker",
-                            reference=reference[:128],
-                            project=project[:128],
-                            component=service_name[:128],
-                            state=state,
-                        )
-                    )
-            else:
-                unmapped.append(
-                    UnmappedRuntimeEvidence(
-                        provider="docker",
-                        reference=reference[:128],
-                        project=None,
-                        component=None,
-                        state=state,
-                    )
-                )
-
-        conflicts: list[str] = []
-        components: list[ComponentEvidence] = []
-        for service in catalog.services:
-            runtime = service.runtime
-            if runtime.provider != "docker-compose":
-                continue
-            for declared in runtime.components:
-                attrs_list = matches.get((runtime.project, declared.selector), [])
-                if len(attrs_list) == 0:
-                    components.append(
-                        ComponentEvidence(
-                            service_id=service.service_id,
-                            selector=declared.selector,
-                            provider="docker",
-                            state="missing",
-                            health="unknown",
-                            observed_at=observed_at,
-                        )
-                    )
-                    continue
-                if len(attrs_list) > 1:
-                    conflicts.append(
-                        f"{runtime.project}/{declared.selector}: "
-                        f"{len(attrs_list)} containers matched"
-                    )
-                    components.append(
-                        ComponentEvidence(
-                            service_id=service.service_id,
-                            selector=declared.selector,
-                            provider="docker",
-                            state="unknown",
-                            health="unknown",
-                            reference=str(attrs_list[0].get("Id", ""))[:12],
-                            ambiguous=True,
-                            observed_at=observed_at,
-                        )
-                    )
-                    continue
-                components.append(
-                    await self._build_evidence(service, declared, attrs_list[0], observed_at)
-                )
-
-        observation_state: Literal["available", "degraded", "unavailable"] = (
-            "degraded" if conflicts else "available"
-        )
-        return ProviderObservation(
-            provider="docker",
-            state=observation_state,
-            observed_at=observed_at,
-            components=components,
-            unmapped=unmapped,
-            conflicts=conflicts,
-        )
 
     async def _build_evidence(
         self,
@@ -284,7 +289,7 @@ class DockerProvider:
             except Exception as exc:
                 raise RuntimeError(f"docker log read failed: {exc}") from exc
             records.extend(_parse_log_lines(raw, binding.source, stream))
-        records.sort(key=lambda record: record.timestamp or datetime.min)
+        records.sort(key=lambda record: record.timestamp or _SENTINEL)
         return records[-tail:]
 
 
