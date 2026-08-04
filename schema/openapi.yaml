@@ -362,35 +362,41 @@ components:
             $ref: '#/components/schemas/LogSource'
     ServiceAction:
       oneOf:
-      - type: object
-        additionalProperties: false
-        required:
-        - type
-        - url
-        properties:
-          type:
-            const: open
-          url:
-            type: string
-            format: uri
-      - type: object
-        additionalProperties: false
-        required:
-        - type
-        - url
-        properties:
-          type:
-            const: copy
-          url:
-            type: string
-            format: uri
-      - type: object
-        additionalProperties: false
-        required:
-        - type
-        properties:
-          type:
-            const: none
+      - $ref: '#/components/schemas/OpenActionSnapshot'
+      - $ref: '#/components/schemas/CopyActionSnapshot'
+      - $ref: '#/components/schemas/NoneActionSnapshot'
+    OpenActionSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - url
+      properties:
+        type:
+          const: open
+        url:
+          type: string
+          format: uri
+    CopyActionSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - url
+      properties:
+        type:
+          const: copy
+        url:
+          type: string
+          format: uri
+    NoneActionSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      properties:
+        type:
+          const: none
     ServiceState:
       type: string
       enum:
@@ -730,21 +736,23 @@ components:
       - error
       properties:
         error:
-          type: object
-          additionalProperties: false
-          required:
-          - code
-          - message
-          - retryable
-          properties:
-            code:
-              type: string
-              pattern: ^[A-Z][A-Z0-9_]*$
-            message:
-              type: string
-              maxLength: 240
-            retryable:
-              type: boolean
+          $ref: '#/components/schemas/ErrorDetail'
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - message
+      - retryable
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+        message:
+          type: string
+          maxLength: 240
+        retryable:
+          type: boolean
   responses:
     Unauthorized:
       description: Authentik identity header is absent.

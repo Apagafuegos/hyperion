@@ -1,4 +1,10 @@
-"""Generated OpenAPI must match the committed schema/openapi.yaml contract."""
+"""Generated OpenAPI must match the committed schema/openapi.yaml contract.
+
+The committed YAML is normative: paths, operations, parameters, responses, and
+schemas must match bidirectionally, so any API surface added without updating
+the contract fails this test. Only FastAPI's framework-injected schemas
+(HTTPValidationError, ValidationError) are exempt from the schema sets.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +17,9 @@ import yaml
 from hyperion.main import create_app
 
 OPENAPI_PATH = Path(__file__).parents[2] / "schema" / "openapi.yaml"
+
+# Schemas FastAPI injects automatically that are not part of the committed contract.
+_FRAMEWORK_SCHEMAS = {"HTTPValidationError", "ValidationError"}
 
 # Sibling constraints carried inside the non-null branch of a nullable union.
 _CONSTRAINT_KEYS = (
@@ -63,10 +72,13 @@ def _normalize(node: Any) -> Any:
     """Canonicalize both sides; documented normalization rules only.
 
     Representation-level drops (cosmetic or not expressible in the generated
-    contract): ``title``, ``default``, ``format``, ``servers``, ``security``,
+    contract): ``title``, ``default``, ``servers``, ``security``,
     ``securitySchemes``, and ``openapi``. Auth enforcement (security/securitySchemes)
     is covered behaviorally by tests/integration/test_api.py, so the committed
     YAML's security section stays as documentation and is not compared.
+
+    ``format`` is NOT dropped: format drift (e.g. datetime vs plain string) must
+    fail parity, so both sides compare it verbatim.
 
     Structural bridges between the committed YAML style and pydantic's emission:
     - ``oneOf`` is compared as ``anyOf`` (OpenAPI 3.1 both valid; pydantic emits anyOf).
@@ -104,7 +116,6 @@ def _normalize(node: Any) -> Any:
             if key in (
                 "title",
                 "default",
-                "format",
                 "servers",
                 "security",
                 "securitySchemes",
@@ -127,15 +138,6 @@ def _without_422(responses: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in responses.items() if k != "422"}
 
 
-def _strip(node: Any) -> Any:
-    """Keep paths, parameters, responses, and schemas; drop non-contract noise."""
-    if isinstance(node, dict):
-        return {k: _strip(v) for k, v in node.items()}
-    if isinstance(node, list):
-        return [_strip(i) for i in node]
-    return node
-
-
 def test_openapi_matches_committed_contract() -> None:
     committed = yaml.safe_load(OPENAPI_PATH.read_text(encoding="utf-8"))
     generated = create_app().openapi()
@@ -144,13 +146,15 @@ def test_openapi_matches_committed_contract() -> None:
     generated_components = generated["components"]
     committed_schemas = committed_components["schemas"]
     generated_schemas = generated_components["schemas"]
-    committed_paths = _strip(committed["paths"])
-    generated_paths = _strip(generated["paths"])
+    committed_paths = committed["paths"]
+    generated_paths = generated["paths"]
 
+    # Bidirectional: the committed YAML is normative, so an endpoint, operation,
+    # parameter, or schema added without updating the contract must fail.
+    assert set(committed_paths) == set(generated_paths)
     for path, methods in committed_paths.items():
-        assert path in generated_paths, f"missing path {path}"
+        assert set(methods) == set(generated_paths[path]), path
         for operation, spec in methods.items():
-            assert operation in generated_paths[path], f"missing operation {path} {operation}"
             assert spec["summary"] == generated_paths[path][operation]["summary"], path
             resolved_committed = _resolve(spec["responses"], committed_components)
             resolved_generated = _resolve(
@@ -159,11 +163,13 @@ def test_openapi_matches_committed_contract() -> None:
             assert _normalize(_without_422(resolved_committed)) == _normalize(
                 _without_422(resolved_generated)
             ), path
-            for parameter in spec.get("parameters", []):
+            committed_parameters = spec.get("parameters", [])
+            generated_parameters = generated_paths[path][operation].get("parameters", [])
+            for parameter in committed_parameters:
                 in_generated = next(
                     (
                         p
-                        for p in generated_paths[path][operation].get("parameters", [])
+                        for p in generated_parameters
                         if p["name"] == parameter["name"] and p["in"] == parameter["in"]
                     ),
                     None,
@@ -172,9 +178,21 @@ def test_openapi_matches_committed_contract() -> None:
                 assert _normalize(_resolve(parameter, committed_components)) == _normalize(
                     _resolve(in_generated, generated_components)
                 ), parameter
+            for parameter in generated_parameters:
+                in_committed = next(
+                    (
+                        p
+                        for p in committed_parameters
+                        if p["name"] == parameter["name"] and p["in"] == parameter["in"]
+                    ),
+                    None,
+                )
+                assert (
+                    in_committed is not None
+                ), f"uncommitted parameter {parameter['name']} in {path}"
 
+    assert set(committed_schemas) == set(generated_schemas) - _FRAMEWORK_SCHEMAS
     for schema_name, schema in committed_schemas.items():
-        assert schema_name in generated_schemas, f"missing schema {schema_name}"
         assert _normalize(_resolve(schema, committed_components)) == _normalize(
             _resolve(generated_schemas[schema_name], generated_components)
         ), schema_name

@@ -23,6 +23,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 type id = Annotated[
     str, Field(pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", min_length=1, max_length=64)
 ]
+# API-facing alias of `id` with identical constraints, duplicated because
+# `type Id = id` makes FastAPI emit a lowercase `#/components/schemas/id` ref
+# for path parameters; the catalog contract keeps its lowercase `$defs.id` key.
 type Id = Annotated[
     str, Field(pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", min_length=1, max_length=64)
 ]
@@ -208,12 +211,12 @@ class Territory(ApiModel):
 
 class OpenActionSnapshot(ApiModel):
     type: Literal["open"]
-    url: str
+    url: Annotated[str, Field(json_schema_extra={"format": "uri"})]
 
 
 class CopyActionSnapshot(ApiModel):
     type: Literal["copy"]
-    url: str
+    url: Annotated[str, Field(json_schema_extra={"format": "uri"})]
 
 
 class NoneActionSnapshot(ApiModel):

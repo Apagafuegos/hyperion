@@ -117,6 +117,12 @@ def test_logs_invalid_before(client) -> None:
     assert response.json()["error"]["code"] == "INVALID_BEFORE"
 
 
+def test_logs_invalid_source_hits_generic_invalid_request(client) -> None:
+    response = get(client, "/api/v1/services/authentik/logs?source=" + "a" * 200)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_REQUEST"
+
+
 def test_index_served_under_identity(client) -> None:
     response = get(client, "/")
     assert response.status_code == 200
