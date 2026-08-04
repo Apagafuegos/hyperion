@@ -100,14 +100,9 @@ def _build_runtime_provider(settings: Settings) -> RuntimeProvider:
         )
     # Phase 2 live providers; not imported in fixture mode.
     from .providers.docker import DockerProvider
-    from .providers.systemd import SystemdProvider  # type: ignore[import-untyped]
+    from .providers.systemd import SystemdProvider
 
-    # DockerProvider.observe returns a single ProviderObservation while the
-    # combined provider currently expects one list per runtime provider; the
-    # adapter lands with the systemd provider task.
-    return CombinedRuntimeProvider(
-        cast(RuntimeProvider, DockerProvider(settings.docker_host)), SystemdProvider()
-    )
+    return CombinedRuntimeProvider(DockerProvider(settings.docker_host), SystemdProvider())
 
 
 def _build_probe_provider(settings: Settings) -> RouteProbeProvider:
