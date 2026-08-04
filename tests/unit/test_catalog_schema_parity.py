@@ -41,15 +41,16 @@ def _sort(node: Any) -> Any:
 
 
 def _normalize(node: Any) -> Any:
-    """Drop cosmetic keys, resolve refs, and canonicalize ordering."""
+    """Drop purely cosmetic keys (title, format, $schema, $id) and canonicalize ordering.
+
+    Everything else — `default`, `enum`, `const`, `type`, `oneOf`, `anyOf`,
+    `allOf`, `required`, and `$ref` strings — is compared verbatim so drift in
+    defaults or enum/const values fails the parity gate.
+    """
     if isinstance(node, dict):
         cleaned: dict[str, Any] = {}
         for key, value in node.items():
-            if key in ("title", "default", "format", "$schema", "$id"):
-                continue
-            if key == "oneOf":
-                key = "anyOf"
-            if key in ("const", "enum") and "type" in node:
+            if key in ("title", "format", "$schema", "$id"):
                 continue
             cleaned[key] = _normalize(value)
         return _sort(cleaned)

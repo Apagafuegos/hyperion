@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ---------------------------------------------------------------------------
 # Shared field types (mirror schema/services.schema.json $defs)
@@ -118,6 +118,13 @@ class Logs(CatalogModel):
     sources: Annotated[list[selector], Field(json_schema_extra={"uniqueItems": True})]
     default_tail: Annotated[Literal[50, 100, 250, 500], Field(alias="defaultTail", default=100)]
 
+    @field_validator("sources")
+    @classmethod
+    def _sources_unique(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("sources must be unique")
+        return value
+
 
 class Service(CatalogModel):
     service_id: Annotated[id, Field(alias="id")]
@@ -131,6 +138,13 @@ class Service(CatalogModel):
     route_probe: Annotated[RouteProbe | None, Field(alias="routeProbe", default=None)]
     logs: Logs
     dependencies: Annotated[list[id], Field(default=[], json_schema_extra={"uniqueItems": True})]
+
+    @field_validator("dependencies")
+    @classmethod
+    def _dependencies_unique(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("dependencies must be unique")
+        return value
 
 
 class Catalog(CatalogModel):
