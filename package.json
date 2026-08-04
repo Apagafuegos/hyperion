@@ -1,0 +1,26 @@
+{
+  "name": "hyperion",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "watch": "vite build --watch",
+    "test": "vitest run",
+    "lint": "eslint frontend tests && tsc --noEmit",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "@fontsource-variable/geologica": "^5.2.0",
+    "@fontsource-variable/recursive": "^5.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.0",
+    "happy-dom": "^15.11.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.18.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.8"
+  }
+}
