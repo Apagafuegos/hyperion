@@ -109,7 +109,7 @@ def _build_probe_provider(settings: Settings) -> RouteProbeProvider:
     if settings.fixture_mode:
         return FixtureProbeProvider(FIXTURES_DIR / "fixture-probes.json")
     # Phase 2 live provider; not imported in fixture mode.
-    from .providers.probe import ProbeProvider  # type: ignore[import-untyped]
+    from .providers.probe import ProbeProvider
 
     return cast(RouteProbeProvider, ProbeProvider())
 
