@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperion.local/schema/services.schema.json",
+  "title": "Hyperion service catalog",
+  "description": "Version 1 manifest for logical services and their allowlisted runtime components.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "services"
+  ],
+  "properties": {
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "services": {
+      "items": {
+        "$ref": "#/$defs/Service"
+      },
+      "title": "Services",
+      "type": "array"
+    }
+  },
+  "$defs": {
+    "Action": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OpenAction"
+        },
+        {
+          "$ref": "#/$defs/CopyAction"
+        },
+        {
+          "$ref": "#/$defs/NoneAction"
+        }
+      ]
+    },
+    "CopyAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "copy",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "pattern": "^https://",
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "url"
+      ],
+      "title": "CopyAction",
+      "type": "object"
+    },
+    "DockerComponent": {
+      "additionalProperties": false,
+      "description": "Compose service component; selector is a plain Compose service name.",
+      "properties": {
+        "selector": {
+          "$ref": "#/$defs/selector"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "role": {
+          "enum": [
+            "primary",
+            "worker",
+            "dependency",
+            "sidecar",
+            "shared"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "selector",
+        "role",
+        "required"
+      ],
+      "title": "DockerComponent",
+      "type": "object"
+    },
+    "DockerRuntime": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "const": "docker-compose",
+          "title": "Provider",
+          "type": "string"
+        },
+        "project": {
+          "$ref": "#/$defs/selector"
+        },
+        "components": {
+          "items": {
+            "$ref": "#/$defs/DockerComponent"
+          },
+          "minItems": 1,
+          "title": "Components",
+          "type": "array"
+        }
+      },
+      "required": [
+        "provider",
+        "project",
+        "components"
+      ],
+      "title": "DockerRuntime",
+      "type": "object"
+    },
+    "Logs": {
+      "additionalProperties": false,
+      "properties": {
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/selector"
+          },
+          "title": "Sources",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "defaultTail": {
+          "default": 100,
+          "enum": [
+            50,
+            100,
+            250,
+            500
+          ],
+          "title": "Defaulttail",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sources"
+      ],
+      "title": "Logs",
+      "type": "object"
+    },
+    "NoneAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "none",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "NoneAction",
+      "type": "object"
+    },
+    "OpenAction": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "open",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "pattern": "^https://",
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "url"
+      ],
+      "title": "OpenAction",
+      "type": "object"
+    },
+    "RouteProbe": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": [
+            "GET",
+            "HEAD"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "url": {
+          "pattern": "^https://",
+          "title": "Url",
+          "type": "string"
+        },
+        "acceptedStatusClasses": {
+          "default": [
+            2,
+            3,
+            4
+          ],
+          "items": {
+            "enum": [
+              2,
+              3,
+              4
+            ],
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Acceptedstatusclasses",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "timeoutMs": {
+          "default": 3000,
+          "maximum": 10000,
+          "minimum": 250,
+          "title": "Timeoutms",
+          "type": "integer"
+        },
+        "slowAfterMs": {
+          "default": 1200,
+          "maximum": 10000,
+          "minimum": 100,
+          "title": "Slowafterms",
+          "type": "integer"
+        },
+        "failureThreshold": {
+          "default": 2,
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Failurethreshold",
+          "type": "integer"
+        },
+        "followRedirects": {
+          "default": false,
+          "title": "Followredirects",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "method",
+        "url"
+      ],
+      "title": "RouteProbe",
+      "type": "object"
+    },
+    "Runtime": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DockerRuntime"
+        },
+        {
+          "$ref": "#/$defs/SystemdRuntime"
+        }
+      ]
+    },
+    "Service": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "territory": {
+          "enum": [
+            "applications",
+            "services",
+            "foundations"
+          ],
+          "title": "Territory",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "web",
+            "api",
+            "mcp",
+            "worker",
+            "infrastructure"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "intent": {
+          "default": "active",
+          "enum": [
+            "active",
+            "dormant"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/Action"
+        },
+        "runtime": {
+          "$ref": "#/$defs/Runtime"
+        },
+        "routeProbe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RouteProbe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "logs": {
+          "$ref": "#/$defs/Logs"
+        },
+        "dependencies": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "title": "Dependencies",
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "territory",
+        "kind",
+        "action",
+        "runtime",
+        "logs"
+      ],
+      "title": "Service",
+      "type": "object"
+    },
+    "SystemdComponent": {
+      "additionalProperties": false,
+      "properties": {
+        "selector": {
+          "maxLength": 128,
+          "minLength": 9,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.@-]*\\.service$",
+          "title": "Selector",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "role": {
+          "enum": [
+            "primary",
+            "worker",
+            "dependency",
+            "sidecar",
+            "shared"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "selector",
+        "role",
+        "required"
+      ],
+      "title": "SystemdComponent",
+      "type": "object"
+    },
+    "SystemdRuntime": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "const": "systemd",
+          "title": "Provider",
+          "type": "string"
+        },
+        "components": {
+          "items": {
+            "$ref": "#/$defs/SystemdComponent"
+          },
+          "minItems": 1,
+          "title": "Components",
+          "type": "array"
+        }
+      },
+      "required": [
+        "provider",
+        "components"
+      ],
+      "title": "SystemdRuntime",
+      "type": "object"
+    },
+    "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "type": "string"
+    },
+    "selector": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.@-]*$",
+      "type": "string"
+    }
+  }
+}
