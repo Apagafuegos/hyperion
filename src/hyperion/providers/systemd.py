@@ -42,21 +42,29 @@ _PRIORITY_TO_SEVERITY: dict[str, _Severity] = {
 ExecRunner = Callable[[list[str]], Awaitable[tuple[int, bytes, bytes]]]
 
 
-async def _subprocess_runner(argv: list[str]) -> tuple[int, bytes, bytes]:
+async def _subprocess_runner(
+    argv: list[str], timeout_seconds: float = _SUBPROCESS_TIMEOUT
+) -> tuple[int, bytes, bytes]:
     process = await asyncio.create_subprocess_exec(
         *argv,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=_SUBPROCESS_TIMEOUT)
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            stdout, stderr = await process.communicate()
+    except (TimeoutError, asyncio.CancelledError):
+        process.kill()
+        await process.wait()
+        raise
     return process.returncode or 0, stdout, stderr
 
 
-def _read_uptime_seconds() -> float:
+def _read_uptime_seconds() -> float | None:
     try:
         return float(Path("/proc/uptime").read_text(encoding="utf-8").split()[0])
     except (OSError, IndexError, ValueError):
-        return 0.0
+        return None
 
 
 class SystemdProvider:
@@ -132,9 +140,12 @@ class SystemdProvider:
         restart_count = int(nrestarts) if nrestarts.isdigit() else None
 
         uptime = None
-        start_mono = properties.get("ExecMainStartTimestampMonotonic", "")
-        if start_mono.isdigit() and int(start_mono) > 0:
-            uptime = max(0, int(_read_uptime_seconds() - int(start_mono) / 1_000_000))
+        if state in ("running", "starting", "restarting"):
+            start_mono = properties.get("ExecMainStartTimestampMonotonic", "")
+            if start_mono.isdigit() and int(start_mono) > 0:
+                system_uptime = _read_uptime_seconds()
+                if system_uptime is not None:
+                    uptime = max(0, int(system_uptime - int(start_mono) / 1_000_000))
 
         return ComponentEvidence(
             service_id=service_id,

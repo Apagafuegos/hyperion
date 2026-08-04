@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from hyperion.catalog import load_catalog
 from hyperion.providers.base import LogBinding
-from hyperion.providers.systemd import SystemdProvider
+from hyperion.providers.systemd import SystemdProvider, _subprocess_runner
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
@@ -86,7 +89,9 @@ def test_failed_unit_maps_to_stopped_unhealthy() -> None:
         {
             "systemctl": (
                 0,
-                b"ActiveState=failed\nSubState=failed\nNRestarts=5\nLoadState=loaded\n",
+                b"ActiveState=failed\nSubState=failed\n"
+                b"ExecMainStartTimestampMonotonic=432000000000\n"
+                b"NRestarts=5\nLoadState=loaded\n",
                 b"",
             )
         }
@@ -98,6 +103,7 @@ def test_failed_unit_maps_to_stopped_unhealthy() -> None:
     assert t3.state == "stopped"
     assert t3.health == "unhealthy"
     assert t3.restart_count == 5
+    assert t3.uptime_seconds is None  # no uptime for non-running states
 
 
 def test_activating_unit_maps_to_starting() -> None:
@@ -241,3 +247,40 @@ def test_journal_message_trailing_newline_is_rstripped() -> None:
     )
     records = asyncio.run(provider.read_logs(binding, tail=10, before=None))
     assert records[0].message == "trail"
+
+
+def test_subprocess_runner_timeout_kills_child() -> None:
+    async def run() -> None:
+        with pytest.raises(TimeoutError):
+            await _subprocess_runner(["sleep", "30"], timeout_seconds=0.2)
+
+    asyncio.run(run())
+    probe = subprocess.run(["pgrep", "-f", "[s]leep 30"], capture_output=True)
+    assert probe.returncode != 0  # no leftover child process
+
+
+def test_systemctl_nonzero_exit_is_unavailable() -> None:
+    async def denied(argv: list[str]) -> tuple[int, bytes, bytes]:
+        return (1, b"", b"permission denied: t3code.service")
+
+    provider = SystemdProvider(executor=denied)
+    catalog = load_catalog(FIXTURES / "fixture-services.yaml")
+    observations = asyncio.run(provider.observe(catalog))
+    assert observations.state == "unavailable"
+    assert observations.error is not None
+    assert "permission denied" in observations.error
+
+
+def test_journalctl_nonzero_exit_raises() -> None:
+    async def denied(argv: list[str]) -> tuple[int, bytes, bytes]:
+        return (1, b"", b"permission denied")
+
+    provider = SystemdProvider(executor=denied)
+    binding = LogBinding(
+        provider="systemd",
+        service_id="t3-code",
+        source="t3code.service",
+        reference="t3code.service",
+    )
+    with pytest.raises(RuntimeError, match="permission denied"):
+        asyncio.run(provider.read_logs(binding, tail=10, before=None))
