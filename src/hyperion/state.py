@@ -32,13 +32,18 @@ def make_reason(
 
 
 def _primary(components: list[ComponentSnapshot]) -> ComponentSnapshot:
-    return next(component for component in components if component.role == "primary")
+    for component in components:
+        if component.role == "primary":
+            return component
+    raise ValueError("service has no primary component")
 
 
 def _evidence_stale(
     components: list[ComponentSnapshot], route: RouteSnapshot | None, now: datetime
 ) -> bool:
     for component in components:
+        if not component.required:
+            continue
         if component.observed_at is None or now - component.observed_at > FRESHNESS_WINDOW:
             return True
     if route is not None and route.observed_at is not None:

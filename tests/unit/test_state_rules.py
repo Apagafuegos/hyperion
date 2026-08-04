@@ -20,6 +20,7 @@ def comp(
     health: str = "healthy",
     provider: str = "docker",
     ambiguous: bool = False,
+    observed_at: datetime | None = NOW,
 ) -> ComponentSnapshot:
     return ComponentSnapshot(
         key=key,
@@ -30,7 +31,7 @@ def comp(
         required=required,
         state=state,
         health=health,
-        observed_at=NOW,
+        observed_at=observed_at,
         image=None,
         uptime_seconds=None,
         restart_count=None,
@@ -165,6 +166,32 @@ def derive(components, route_snap, providers_ok, intent="active", threshold=2):
             "rule4 evidence stale",
             [comp("p", state="running")],
             route(observed=NOW - timedelta(seconds=60)),
+            {"docker": True},
+            "active",
+            "unknown",
+            "evidence_stale",
+        ),
+        (
+            "rule4 stale optional evidence keeps reachable",
+            [
+                comp("p"),
+                comp(
+                    "w",
+                    role="worker",
+                    required=False,
+                    observed_at=NOW - timedelta(seconds=60),
+                ),
+            ],
+            route(),
+            {"docker": True},
+            "active",
+            "reachable",
+            None,
+        ),
+        (
+            "rule4 stale required evidence is unknown",
+            [comp("p"), comp("d", role="dependency", observed_at=NOW - timedelta(seconds=60))],
+            route(),
             {"docker": True},
             "active",
             "unknown",
@@ -322,8 +349,7 @@ def test_derivation_precedence(
     state, reasons = derive(components, route_snap, providers_ok, intent)
     assert state == expected, name
     if expected_code is not None:
-        codes = {reason.code for reason in reasons}
-        assert expected_code in codes, name
+        assert reasons[-1].code == expected_code, name
 
 
 def test_threshold_comes_from_probe_config() -> None:
@@ -336,3 +362,8 @@ def test_threshold_comes_from_probe_config() -> None:
 def test_reasons_retain_component_key() -> None:
     reason = make_reason("primary_missing", "critical", "Primary component was not found", "p")
     assert reason.component_key == "p"
+
+
+def test_derive_requires_a_primary_component() -> None:
+    with pytest.raises(ValueError, match="no primary component"):
+        derive([comp("d", role="dependency")], route(), {"docker": True})
