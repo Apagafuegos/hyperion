@@ -313,6 +313,7 @@ body {
 }
 .open-action:hover { background: color-mix(in srgb, var(--route-wash) 40%, transparent); }
 .open-action:focus-visible { outline: 3px solid var(--bearing-brass); outline-offset: 2px; }
+.no-action { pointer-events: none; }
 
 /* Dossier — inline expansion inside the selected band */
 .dossier {
@@ -461,6 +462,17 @@ body {
 .severity-critical { background: var(--failure-wash); color: var(--failure-red); }
 .log-empty { padding: var(--space-panel); color: var(--graphite-copy); }
 
+/* Stale-data note — caution state, sits below the atlas frame */
+.stale-note {
+  margin-top: var(--space-control);
+  padding: var(--space-compact) var(--space-control);
+  border-radius: var(--radius-action);
+  background: var(--caution-wash);
+  color: var(--caution-ochre);
+  font-size: .62rem;
+  font-weight: 600;
+}
+
 /* Toast — the only elevated surface */
 .toast {
   position: fixed;
@@ -531,8 +543,6 @@ body {
 
 /* Breakpoint 900px — bearings become a strip, dossier two columns */
 @media (max-width: 900px) {
-  .header-inner { grid-template-columns: 1fr auto; }
-  .global-search { grid-column: 1 / -1; grid-row: 2; }
   .atlas-frame { grid-template-columns: 1fr; }
   .latitudes { grid-column: 1; }
   .bearings-rail { grid-column: 1; grid-row: 2; flex-direction: row; flex-wrap: wrap; border-left: 0; border-top: 1px solid var(--weathered-rule); }
@@ -542,12 +552,15 @@ body {
   .dossier { grid-template-columns: 1fr 1fr; margin-left: var(--space-gutter); }
   .dossier section:nth-child(3) { border-top: 1px solid var(--weathered-rule); border-left: 0; }
   .dossier section:nth-child(4) { border-top: 1px solid var(--weathered-rule); }
-  .open-action { width: 32px; height: 32px; padding: 0; border-radius: 50%; text-indent: -9999px; overflow: hidden; position: relative; }
+  .open-action { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 0; color: transparent; overflow: visible; outline-offset: 2px; }
+  .log-row { grid-template-columns: 76px 64px 1fr; }
+  .log-row code { display: none; }
 }
 
 /* Breakpoint 620px — search second row, stacked bands, 2x2 bearings, one-column dossier */
 @media (max-width: 620px) {
   .header-inner { grid-template-columns: 1fr; gap: var(--space-compact); }
+  .global-search { grid-column: 1 / -1; grid-row: 2; }
   .global-nav { justify-content: flex-start; }
   .band-heading { grid-template-columns: 1fr; gap: var(--space-micro); }
   .band-coords { border-left: 0; padding-left: 0; }
@@ -561,6 +574,6 @@ body {
   .dossier section:nth-child(3), .dossier section:nth-child(4) { display: none; }
   .bearing { flex: 1 1 45%; }
   .bearing-value { font-size: 1.45rem; }
-  .log-row { grid-template-columns: 76px 64px 1fr; }
-  .log-row code { display: none; }
+  .log-row { grid-template-columns: 76px 1fr; }
+  .log-row b { display: none; }
 }

@@ -19,13 +19,18 @@ import {
 
 const POLL_INTERVAL_MS = 15_000;
 
+type LogCacheEntry =
+  | LogsResponse
+  | { status: "error"; message: string; retryable: boolean }
+  | "loading";
+
 interface ClientState {
   snapshot: Snapshot | null;
   etag: string | null;
   query: string;
   selectedId: string | null;
   priorSelection: string | null;
-  logs: Map<string, LogsResponse | "loading" | "error">;
+  logs: Map<string, LogCacheEntry>;
 }
 
 const state: ClientState = {
@@ -54,10 +59,28 @@ const logState = $("#log-state");
 const logSubject = $("#log-subject");
 const toastElement = $("#toast");
 const diagnosticsKeycap = $("#diagnostics-keycap");
+const atlasFrame = $(".atlas-frame");
+
+// Dedicated live region for meaningful announcements only. The template ships
+// aria-live on #latitudes (useful without JS); the client removes it at boot
+// because patch-in-place recency rewrites would otherwise announce on every poll.
+const atlasStatus = document.createElement("div");
+atlasStatus.id = "atlas-status";
+atlasStatus.className = "visually-hidden";
+atlasStatus.setAttribute("role", "status");
+document.body.append(atlasStatus);
+
+// Stale-data note: shown when the last poll failed or the snapshot is stale.
+const staleNote = document.createElement("div");
+staleNote.id = "stale-note";
+staleNote.className = "stale-note";
+staleNote.hidden = true;
+atlasFrame.after(staleNote);
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 let toastTimer: number | undefined;
+let announceTimer: number | undefined;
 
 // --- Rendering ---------------------------------------------------------------
 
@@ -141,23 +164,27 @@ function buildRow(service: ServiceSnapshot): HTMLElement {
   return row;
 }
 
+function serviceFacts(service: ServiceSnapshot): [string, string][] {
+  return [
+    ["State", stateLabel(service.state)],
+    ["Observed", formatObserved(service.observedAt, Date.now())],
+    ...((service.route
+      ? [
+          ["Status code", service.route.statusCode === null ? "—" : String(service.route.statusCode)],
+          ["Latency", formatLatency(service.route.latencyMs)],
+          ["Failures", String(service.route.consecutiveFailures)],
+        ]
+      : []) as [string, string][]),
+  ];
+}
+
 function buildDossier(service: ServiceSnapshot): HTMLElement {
   const dossier = document.createElement("div");
   dossier.className = "dossier";
   dossier.hidden = true;
   dossier.dataset.dossierFor = service.id;
   dossier.append(
-    dossierSection("Route evidence", [
-      ["State", stateLabel(service.state)],
-      ["Observed", formatObserved(service.observedAt, Date.now())],
-      ...((service.route
-        ? [
-            ["Status code", service.route.statusCode === null ? "—" : String(service.route.statusCode)],
-            ["Latency", formatLatency(service.route.latencyMs)],
-            ["Failures", String(service.route.consecutiveFailures)],
-          ]
-        : []) as [string, string][]),
-    ]),
+    dossierSection("Route evidence", serviceFacts(service)),
     dossierComponents(service),
     dossierDependencies(service),
     dossierReasons(service),
@@ -288,18 +315,32 @@ function patchRow(row: HTMLElement, service: ServiceSnapshot): void {
   if (service.action.type === "open") {
     action.href = service.action.url;
     action.textContent = "Open ↗";
+    action.setAttribute("aria-label", "Open service");
+    action.removeAttribute("aria-disabled");
     action.classList.remove("copy-action", "no-action");
   } else if (service.action.type === "copy") {
     action.href = "#";
     action.textContent = "Copy";
+    action.setAttribute("aria-label", "Copy endpoint");
+    action.removeAttribute("aria-disabled");
     action.classList.add("copy-action");
     action.classList.remove("no-action");
   } else {
     action.href = "#";
     action.textContent = "No route";
+    action.setAttribute("aria-label", "No launch route");
+    action.setAttribute("aria-disabled", "true");
     action.classList.add("no-action");
     action.classList.remove("copy-action");
   }
+}
+
+function patchDossier(dossier: HTMLElement, service: ServiceSnapshot): void {
+  const sections = dossier.querySelectorAll<HTMLElement>(":scope > section");
+  if (sections[0]) sections[0].replaceWith(dossierSection("Route evidence", serviceFacts(service)));
+  if (sections[1]) sections[1].replaceWith(dossierComponents(service));
+  if (sections[2]) sections[2].replaceWith(dossierDependencies(service));
+  if (sections[3]) sections[3].replaceWith(dossierReasons(service));
 }
 
 function renderBearings(snapshot: Snapshot): void {
@@ -363,6 +404,8 @@ function selectService(serviceId: string | null): void {
       `.service-row[data-service-id="${serviceId}"]`,
     );
     selectedRow?.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "auto" : "smooth" });
+    const service = state.snapshot?.services.find((s) => s.id === serviceId);
+    if (service) announce(`Selected ${service.name}`);
   }
 }
 
@@ -419,7 +462,8 @@ async function loadLogs(service: ServiceSnapshot, force: boolean): Promise<void>
   const key = logCacheKey(service.id, source, tail);
   const cached = state.logs.get(key);
   if (!force && cached !== undefined && cached !== "loading") {
-    renderLogs(cached === "error" ? null : cached);
+    if ("status" in cached) renderLogsError(cached.message, cached.retryable);
+    else renderLogs(cached);
     return;
   }
   state.logs.set(key, "loading");
@@ -430,15 +474,8 @@ async function loadLogs(service: ServiceSnapshot, force: boolean): Promise<void>
     state.logs.set(key, result.logs);
     renderLogs(result.logs);
   } else {
-    state.logs.set(key, "error");
-    logState.textContent = result.message;
-    logRows.textContent = "";
-    const note = document.createElement("p");
-    note.className = "log-empty";
-    note.textContent = result.retryable
-      ? "Logs are temporarily unavailable. Try again in a moment."
-      : "Logs are unavailable for this source.";
-    logRows.append(note);
+    state.logs.set(key, { status: "error", message: result.message, retryable: result.retryable });
+    renderLogsError(result.message, result.retryable);
   }
 }
 
@@ -446,16 +483,9 @@ function logCacheKey(serviceId: string, source: string | null, tail: number): st
   return `${serviceId}::${source ?? ""}::${tail}`;
 }
 
-function renderLogs(logs: LogsResponse | null): void {
+function renderLogs(logs: LogsResponse): void {
   logRows.textContent = "";
   logState.textContent = "";
-  if (logs === null) {
-    const note = document.createElement("p");
-    note.className = "log-empty";
-    note.textContent = "Logs are unavailable for this source.";
-    logRows.append(note);
-    return;
-  }
   if (logs.records.length === 0) {
     const note = document.createElement("p");
     note.className = "log-empty";
@@ -484,22 +514,36 @@ function renderLogs(logs: LogsResponse | null): void {
   }
 }
 
+function renderLogsError(message: string, retryable: boolean): void {
+  logState.textContent = message;
+  logRows.textContent = "";
+  const note = document.createElement("p");
+  note.className = "log-empty";
+  note.textContent = retryable
+    ? "Logs are temporarily unavailable. Try again in a moment."
+    : "Logs are unavailable for this source.";
+  logRows.append(note);
+}
+
 // --- Copy action and toast ---------------------------------------------------
 
 async function copyEndpoint(url: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(url);
+    showToast("Endpoint copied");
+    return;
   } catch {
-    const textarea = document.createElement("textarea");
-    textarea.value = url;
-    textarea.style.position = "fixed";
-    textarea.style.opacity = "0";
-    document.body.append(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    textarea.remove();
+    // fall through to the legacy execCommand path
   }
-  showToast("Endpoint copied");
+  const textarea = document.createElement("textarea");
+  textarea.value = url;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  showToast(copied ? "Endpoint copied" : "Copy failed — select the endpoint manually");
 }
 
 function showToast(message: string): void {
@@ -513,11 +557,38 @@ function showToast(message: string): void {
 
 // --- Polling ----------------------------------------------------------------
 
+function announce(message: string): void {
+  atlasStatus.textContent = message;
+  window.clearTimeout(announceTimer);
+  announceTimer = window.setTimeout(() => {
+    atlasStatus.textContent = "";
+  }, 1000);
+}
+
+function setStaleNote(show: boolean, message: string): void {
+  if (show) {
+    staleNote.textContent = message;
+    staleNote.hidden = false;
+    announce(message);
+  } else {
+    staleNote.textContent = "";
+    staleNote.hidden = true;
+  }
+}
+
 async function refreshSnapshot(): Promise<void> {
   if (document.hidden) return;
   const result = await fetchSnapshot(state.etag);
-  if (result.status !== "ok") return;
+  if (result.status === "error") {
+    setStaleNote(true, "Live data is stale — refresh failed.");
+    return;
+  }
+  if (result.status === "not-modified") {
+    setStaleNote(false, "");
+    return;
+  }
   state.etag = result.etag;
+  setStaleNote(!result.snapshot.fresh, result.snapshot.fresh ? "" : "Live data is stale.");
   if (state.snapshot === null) {
     state.snapshot = result.snapshot;
     buildAtlas(result.snapshot);
@@ -533,6 +604,13 @@ function patchAll(snapshot: Snapshot): void {
   for (const row of document.querySelectorAll<HTMLElement>(".service-row")) {
     const service = byId.get(row.dataset.serviceId ?? "");
     if (service) patchRow(row, service);
+  }
+  if (state.selectedId !== null) {
+    const dossier = document.querySelector<HTMLElement>(
+      `.dossier[data-dossier-for="${state.selectedId}"]`,
+    );
+    const service = byId.get(state.selectedId);
+    if (dossier && service) patchDossier(dossier, service);
   }
   renderBearings(snapshot);
   renderDiagnostics(snapshot);
@@ -627,6 +705,11 @@ function wireEvents(): void {
 // --- Boot --------------------------------------------------------------------
 
 async function boot(): Promise<void> {
+  // The template keeps aria-live="polite" on #latitudes for no-JS semantics;
+  // with the client active, patch-in-place recency rewrites every 15s would
+  // announce constantly, so the live region is removed and meaningful changes
+  // go through the dedicated #atlas-status region instead.
+  latitudes.removeAttribute("aria-live");
   wireEvents();
   const result = await fetchSnapshot(null);
   if (result.status === "error") {
@@ -634,9 +717,7 @@ async function boot(): Promise<void> {
     note.className = "band-empty";
     note.textContent = `The atlas could not be loaded: ${result.message}`;
     latitudes.append(note);
-    return;
-  }
-  if (result.status === "ok") {
+  } else if (result.status === "ok") {
     state.etag = result.etag;
     state.snapshot = result.snapshot;
     buildAtlas(result.snapshot);
