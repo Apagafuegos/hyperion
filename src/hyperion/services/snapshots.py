@@ -46,10 +46,19 @@ def _compute_etag(snapshot: AtlasSnapshot) -> str:
 def compute_fresh(
     providers: dict[str, ProviderStatus], required: set[str], now: datetime
 ) -> bool:
-    """The snapshot is fresh while every required provider observed within the window."""
+    """Snapshot freshness over the required providers.
+
+    Fresh means every required provider that has a status entry observed
+    within the window and is not unavailable. A required provider with no
+    status entry at all is skipped: the reconciler always emits an entry per
+    required provider (missing observations become `unavailable`), so an
+    absent entry is a defensive dead branch, not a real failure mode.
+    """
     for name in required:
         status = providers.get(name)
         if status is None:
+            # Reconciler always emits an entry per required provider; an absent
+            # entry is a defensive dead branch and must not fail freshness.
             continue
         if status.state == "unavailable":
             return False

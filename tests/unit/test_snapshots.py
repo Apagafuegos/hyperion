@@ -108,5 +108,28 @@ def test_fresh_ignores_unrequired_providers() -> None:
     assert compute_fresh(statuses, {"docker", "systemd"}, NOW)
 
 
+def test_fresh_skips_required_provider_without_entry() -> None:
+    assert compute_fresh({}, {"docker"}, NOW)
+
+
+def test_fresh_at_exact_window_boundary() -> None:
+    statuses = {
+        "docker": ProviderStatus(
+            provider="docker", state="available",
+            observed_at=NOW - FRESH_WINDOW, message=None,
+        )
+    }
+    assert compute_fresh(statuses, {"docker"}, NOW)
+
+
+def test_stale_when_observed_at_missing() -> None:
+    statuses = {
+        "docker": ProviderStatus(
+            provider="docker", state="available", observed_at=None, message=None
+        )
+    }
+    assert not compute_fresh(statuses, {"docker"}, NOW)
+
+
 def test_compute_fresh_accepts_none_required() -> None:
     assert compute_fresh({}, set(), NOW)
