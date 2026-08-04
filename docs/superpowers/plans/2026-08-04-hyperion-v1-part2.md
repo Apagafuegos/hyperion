@@ -2600,6 +2600,7 @@ body {
 Notes:
 - Font family names: check the names exported by `@fontsource-variable/recursive` and `@fontsource-variable/geologica` (their `index.css` typically declares `"Recursive Variable"` and `"Geologica Variable"`); adjust the `--font-*` tokens if needed.
 - Task 3.4 runs a bounded visual comparison against `index.html` and corrects drift.
+- The template ships a visually-hidden `h1` (`.visually-hidden`, brand title) for heading hierarchy; the CSS block above has no such utility — include `.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }` in `atlas.css` or the h1 renders visibly.
 
 - [ ] **Step 3: Build and smoke-test**
 

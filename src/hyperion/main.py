@@ -30,6 +30,12 @@ from .settings import Settings
 
 logger = logging.getLogger("hyperion")
 
+CSP = (
+    "default-src 'self'; script-src 'self'; style-src 'self'; "
+    "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+    "base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'"
+)
+
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 STATIC_DIR = Path(__file__).parent / "static"
 FIXTURES_DIR = Path(__file__).parents[2] / "tests" / "fixtures"
@@ -165,6 +171,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         response = await call_next(request)
+        response.headers["Content-Security-Policy"] = CSP
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
