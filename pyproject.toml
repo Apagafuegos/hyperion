@@ -1,0 +1,52 @@
+[project]
+name = "hyperion"
+version = "1.0.0"
+description = "Read-only service atlas for a single VPS"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.32,<1",
+    "pydantic>=2.9,<3",
+    "PyYAML>=6.0,<7",
+    "httpx>=0.27,<1",
+    "docker>=7.1,<8",
+    "jinja2>=3.1,<4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<1",
+    "ruff>=0.8,<1",
+    "mypy>=1.13,<2",
+    "jsonschema>=4.23,<5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hyperion"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+mypy_path = "src"
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["docker.*"]
+ignore_missing_imports = true
