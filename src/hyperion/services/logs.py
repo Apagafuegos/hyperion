@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 
 from ..api.errors import ApiError
@@ -10,9 +11,12 @@ from ..providers.base import LogBinding, LogRecordIn, RuntimeProvider
 
 
 class LogGateway:
-    def __init__(self, runtime_provider: RuntimeProvider, catalog: Catalog) -> None:
+    def __init__(
+        self, runtime_provider: RuntimeProvider, catalog: Catalog, timeout: float = 5.0
+    ) -> None:
         self._provider = runtime_provider
         self._catalog = catalog
+        self._timeout = timeout
 
     async def read(
         self, service_id: str, source: str | None, tail: int, before: datetime | None
@@ -38,7 +42,18 @@ class LogGateway:
                 source=name,
                 reference=component.selector,
             )
-            fetched = await self._provider.read_logs(binding, tail, before)
+            try:
+                fetched = await asyncio.wait_for(
+                    self._provider.read_logs(binding, tail, before), timeout=self._timeout
+                )
+            except TimeoutError:
+                raise ApiError(
+                    503, "PROVIDER_TIMEOUT", "The log provider timed out.", True
+                ) from None
+            except Exception as exc:
+                raise ApiError(
+                    503, "LOG_SOURCE_UNAVAILABLE", "Logs are unavailable for this component.", True
+                ) from exc
             records.extend(_normalize(fetched))
 
         records.sort(

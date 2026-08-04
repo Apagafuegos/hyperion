@@ -2,6 +2,18 @@
 
 from __future__ import annotations
 
+import time
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from hyperion import main as main_module
+from hyperion.main import create_app
+from hyperion.providers.fixture import FixtureProbeProvider, FixtureRuntimeProvider
+from hyperion.settings import Settings
+
+FIXTURES = Path(__file__).parents[1] / "fixtures"
+
 
 def get(client, path, identity=True, **kwargs):
     headers = kwargs.pop("headers", {})
@@ -109,3 +121,59 @@ def test_index_served_under_identity(client) -> None:
     response = get(client, "/")
     assert response.status_code == 200
     assert "Hyperion" in response.text
+
+
+class FlakyRuntime:
+    """Fails the first observe call, then delegates to the fixture provider."""
+
+    def __init__(self) -> None:
+        self._inner = FixtureRuntimeProvider(
+            FIXTURES / "fixture-evidence.json", FIXTURES / "fixture-logs.json"
+        )
+        self._calls = 0
+
+    async def observe(self, catalog):
+        self._calls += 1
+        if self._calls == 1:
+            raise RuntimeError("transient docker failure")
+        return await self._inner.observe(catalog)
+
+    async def read_logs(self, binding, tail, before):
+        return await self._inner.read_logs(binding, tail, before)
+
+
+def _fixture_app_settings() -> Settings:
+    settings = Settings.from_env()
+    return Settings(
+        catalog_path=FIXTURES / "fixture-services.yaml",
+        docker_host=settings.docker_host,
+        bind_host=settings.bind_host,
+        bind_port=settings.bind_port,
+        log_level=settings.log_level,
+        fixture_mode=True,
+    )
+
+
+def test_snapshot_becomes_ready_after_transient_initial_failure(monkeypatch) -> None:
+    """A failed initial cycle must not prevent the supervisor from self-healing."""
+    monkeypatch.setattr(
+        main_module, "_build_runtime_provider", lambda settings: FlakyRuntime()
+    )
+    monkeypatch.setattr(
+        main_module,
+        "_build_probe_provider",
+        lambda settings: FixtureProbeProvider(FIXTURES / "fixture-probes.json"),
+    )
+    app = create_app(settings=_fixture_app_settings())
+    with TestClient(app) as client:
+        deadline = time.monotonic() + 5
+        response = None
+        while time.monotonic() < deadline:
+            response = get(client, "/readyz")
+            if response.status_code == 200:
+                break
+            time.sleep(0.05)
+        assert response is not None and response.status_code == 200
+        snapshot = get(client, "/api/v1/snapshot")
+        assert snapshot.status_code == 200
+        assert snapshot.json()["fresh"] is True

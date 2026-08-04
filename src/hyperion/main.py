@@ -66,14 +66,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.runtime_provider = runtime_provider
         app.state.probe_provider = probe_provider
         app.state.log_gateway = LogGateway(runtime_provider, catalog)
-        if await _run_cycle(runtime_provider, probe_provider, catalog, store):
-            supervisor = RefreshSupervisor(
-                runtime_provider=runtime_provider,
-                probe_provider=probe_provider,
-                catalog=catalog,
-                store=store,
-            )
-            app.state.supervisor_task = asyncio.create_task(supervisor.run())
+        # A failed initial cycle must not prevent startup: the supervisor keeps
+        # running and publishes as soon as a cycle succeeds.
+        await _run_cycle(runtime_provider, probe_provider, catalog, store)
+        supervisor = RefreshSupervisor(
+            runtime_provider=runtime_provider,
+            probe_provider=probe_provider,
+            catalog=catalog,
+            store=store,
+        )
+        app.state.supervisor_task = asyncio.create_task(supervisor.run())
     yield
     task = app.state.supervisor_task
     if task is not None:

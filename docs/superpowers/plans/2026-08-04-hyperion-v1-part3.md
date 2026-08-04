@@ -1237,6 +1237,8 @@ git commit -m "feat: route probe provider with in-memory failure streaks"
 
 The gateway itself (allowlist resolution, merge, bounds) is already implemented and tested through fixture mode in Task 1.8. This task adds the live-provider behaviors and their tests: Docker TTY vs non-TTY parsing, journald severity mapping, `before` bounds, per-source timeouts, and the response-size cap.
 
+**Note (reference resolution):** the gateway currently binds `LogBinding.reference` to `component.selector` — a Compose service name — but `DockerProvider.read_logs` will resolve `binding.reference` as a container name. The gateway must resolve selectors to live container references from provider observations: the reconciler evidence map already carries `reference` per component (`ComponentEvidence.reference` in `providers/base.py`). Either the gateway (via a shared component-reference registry built from the latest observations) or the Docker provider's own discovery must supply container names when building the `LogBinding`; without it, live Docker log reads will fail at runtime. Systemd bindings are unaffected (`reference` is the unit name).
+
 **Files:**
 - Test: `tests/unit/test_logs_gateway.py`
 
