@@ -28,7 +28,7 @@ def load_catalog(path: Path) -> Catalog:
     """Load, validate, and normalize the manifest at `path`."""
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         raise CatalogError(f"cannot read catalog: {exc}") from exc
     try:
         raw = yaml.safe_load(text)

@@ -135,6 +135,13 @@ def test_rejects_shared_docker_ownership_without_shared_role(tmp_path: Path) -> 
         load_catalog(_write(tmp_path, body))
 
 
+def test_rejects_invalid_utf8(tmp_path: Path) -> None:
+    path = tmp_path / "services.yaml"
+    path.write_bytes(b"\xff\xfe\x00garbage")
+    with pytest.raises(CatalogError):
+        load_catalog(path)
+
+
 def test_unknown_properties_rejected(tmp_path: Path) -> None:
     body = """
 version: 1
