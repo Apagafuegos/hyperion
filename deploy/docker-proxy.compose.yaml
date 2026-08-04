@@ -1,0 +1,53 @@
+services:
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    container_name: docker-proxy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2375:2375"
+    environment:
+      CONTAINERS: "1"
+      INFO: "1"
+      PING: "1"
+      VERSION: "1"
+      STATS: "1"
+      LOGS: "1"
+      POST: "0"
+      PUT: "0"
+      DELETE: "0"
+      PATCH: "0"
+      IMAGES: "0"
+      NETWORKS: "0"
+      VOLUMES: "0"
+      TASKS: "0"
+      NODES: "0"
+      SERVICES: "0"
+      SWARM: "0"
+      SECRETS: "0"
+      CONFIGS: "0"
+      BUILD: "0"
+      PLUGINS: "0"
+      EVENTS: "0"
+      EXEC: "0"
+      AUTH: "0"
+      COMMIT: "0"
+      PRUNE: "0"
+      ATTACH: "0"
+      ALLOW_START: "0"
+      ALLOW_STOP: "0"
+      ALLOW_RESTART: "0"
+      ALLOW_KILL: "0"
+      ALLOW_UPDATE: "0"
+      ALLOW_PAUSE: "0"
+      ALLOW_UNPAUSE: "0"
+      ALLOW_CREATE: "0"
+      ALLOW_IMAGES: "0"
+      ALLOW_LOADS: "0"
+      ALLOW_SAVES: "0"
+      ALLOW_PUSH: "0"
+      ALLOW_PULL: "0"
+      ALLOW_RENAME: "0"
+      ALLOW_EXEC: "0"
+      ALLOW_ATTACH: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
