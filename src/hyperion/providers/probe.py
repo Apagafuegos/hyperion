@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import socket
 import ssl
@@ -67,11 +68,15 @@ class ProbeProvider:
 
     async def observe(self, probes: tuple[str, ...]) -> ProbeObservation:
         observed_at = datetime.now(UTC)
-        results: list[ProbeEvidence] = []
         try:
             client = await self._http()
-            for url in probes:
-                results.append(await self._probe_one(client, url, observed_at))
+            semaphore = asyncio.Semaphore(_CONCURRENT)
+
+            async def _probe(url: str) -> ProbeEvidence:
+                async with semaphore:
+                    return await self._probe_one(client, url, observed_at)
+
+            results = list(await asyncio.gather(*(_probe(url) for url in probes)))
         except Exception as exc:  # provider boundary
             logger.warning("probe observation failed: %s", exc)
             return ProbeObservation(
@@ -104,7 +109,9 @@ class ProbeProvider:
                     if size >= BODY_LIMIT:
                         break
                 status_code = response.status_code
-                accepted = 100 <= status_code < 500
+                accepted = 200 <= status_code < 500
+                if not accepted and status_code is not None and status_code >= 500:
+                    error = "http"
         except httpx.TimeoutException as exc:
             error = "timeout"
             logger.debug("probe timeout %s: %s", url, exc)
@@ -114,6 +121,9 @@ class ProbeProvider:
         except httpx.TransportError as exc:
             error = _categorize_error(exc)
             logger.debug("probe transport error %s: %s", url, exc)
+        except Exception as exc:  # per-URL isolation; unknown category
+            error = "unknown"
+            logger.debug("probe error %s: %s", url, exc)
 
         latency_ms = int((time.monotonic() - started) * 1000)
         if accepted:

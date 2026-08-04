@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import socket
 import ssl
+import time
 
 import httpx
 
@@ -51,6 +52,8 @@ def test_5xx_and_transport_failures_increment_streak() -> None:
     second = asyncio.run(provider.observe(("https://alpha.example.com",)))
     assert first.results[0].consecutive_failures == 1
     assert second.results[0].consecutive_failures == 2
+    assert first.results[0].state == "failed"
+    assert first.results[0].error == "http"
 
 
 def test_success_resets_streak() -> None:
@@ -89,15 +92,45 @@ def test_body_limit_reads_only_1kib() -> None:
     assert observation.results[0].status_code == 200
 
 
-def test_provider_total_failure_unavailable() -> None:
+def test_per_url_runtime_error_yields_failed_result() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         raise RuntimeError("client broken")
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     provider = ProbeProvider(client_factory=lambda: client)
     observation = asyncio.run(provider.observe(("https://alpha.example.com",)))
+    assert observation.state == "available"
+    result = observation.results[0]
+    assert result.state == "failed"
+    assert result.error == "unknown"
+
+
+def test_client_factory_failure_unavailable() -> None:
+    def broken_factory() -> httpx.AsyncClient:
+        raise RuntimeError("factory broken")
+
+    provider = ProbeProvider(client_factory=broken_factory)
+    observation = asyncio.run(provider.observe(("https://alpha.example.com",)))
     assert observation.state == "unavailable"
     assert observation.error is not None
+
+
+def test_per_url_exception_isolated() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "alpha" in str(request.url):
+            raise RuntimeError("boom")
+        return httpx.Response(200)
+
+    provider = make_provider(handler)
+    observation = asyncio.run(
+        provider.observe(("https://alpha.example.com", "https://beta.example.com"))
+    )
+    assert observation.state == "available"
+    alpha, beta = observation.results
+    assert alpha.state == "failed"
+    assert alpha.error == "unknown"
+    assert beta.state == "reachable"
+    assert beta.error is None
 
 
 def test_4xx_is_reachable() -> None:
@@ -170,6 +203,28 @@ def test_error_none_when_reachable() -> None:
     provider = make_provider(handler)
     observation = asyncio.run(provider.observe(("https://alpha.example.com",)))
     assert observation.results[0].error is None
+
+
+def test_probes_run_in_parallel() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.05)
+        return httpx.Response(200)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = ProbeProvider(client_factory=lambda: client)
+    started = time.monotonic()
+    observation = asyncio.run(
+        provider.observe(
+            (
+                "https://alpha.example.com",
+                "https://beta.example.com",
+                "https://gamma.example.com",
+            )
+        )
+    )
+    elapsed = time.monotonic() - started
+    assert elapsed < 0.15
+    assert all(r.state == "reachable" for r in observation.results)
 
 
 def test_close_closes_client() -> None:
