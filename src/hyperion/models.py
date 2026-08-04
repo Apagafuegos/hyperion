@@ -11,6 +11,7 @@ schema's `$defs` keys exactly. Plain `TypeAlias` assignments are inlined.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -156,3 +157,183 @@ class Catalog(CatalogModel):
     )
     version: Literal[1]
     services: list[Service]
+
+
+# ---------------------------------------------------------------------------
+# API snapshot models (schema/openapi.yaml components)
+# ---------------------------------------------------------------------------
+
+
+def _to_camel(name: str) -> str:
+    head, *rest = name.split("_")
+    return head + "".join(part.capitalize() for part in rest)
+
+
+class ApiModel(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=_to_camel,
+        populate_by_name=True,
+        extra="forbid",
+    )
+
+
+class HealthResponse(ApiModel):
+    status: Literal["ok", "ready"]
+
+
+class ProviderStatus(ApiModel):
+    provider: Literal["docker", "systemd", "probe"]
+    state: Literal["available", "degraded", "unavailable"]
+    observed_at: datetime | None
+    message: str | None = Field(max_length=240)
+
+
+class StateSummary(ApiModel):
+    total: int = Field(ge=0)
+    reachable: int = Field(ge=0)
+    degraded: int = Field(ge=0)
+    down: int = Field(ge=0)
+    dormant: int = Field(ge=0)
+    unknown: int = Field(ge=0)
+
+
+class Territory(ApiModel):  # type: ignore[no-redef]  # noqa: F811 - API component shadowing the catalog literal
+    id: Literal["applications", "services", "foundations"]
+    label: Literal["Applications", "Services", "Foundations"]
+    order: Literal[1, 2, 3]
+
+
+class OpenActionSnapshot(ApiModel):
+    type: Literal["open"]
+    url: str
+
+
+class CopyActionSnapshot(ApiModel):
+    type: Literal["copy"]
+    url: str
+
+
+class NoneActionSnapshot(ApiModel):
+    type: Literal["none"]
+
+
+ServiceAction = OpenActionSnapshot | CopyActionSnapshot | NoneActionSnapshot
+
+
+class StateReason(ApiModel):
+    code: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    severity: Literal["info", "warning", "critical"]
+    message: str = Field(max_length=240)
+    component_key: str | None
+
+
+class RouteSnapshot(ApiModel):
+    state: Literal["reachable", "slow", "failed", "unknown"]
+    status_code: int | None = Field(ge=100, le=599)
+    latency_ms: int | None = Field(ge=0)
+    consecutive_failures: int = Field(ge=0)
+    observed_at: datetime | None
+    error: Literal["dns", "timeout", "tls", "connection", "http", "unknown"] | None
+
+
+class ComponentSnapshot(ApiModel):
+    key: str = Field(max_length=128)
+    label: str = Field(max_length=64)
+    provider: Literal["docker", "systemd"]
+    provider_ref: str | None = Field(max_length=128)
+    role: ComponentRole
+    required: bool
+    state: ComponentState
+    health: HealthState
+    observed_at: datetime | None
+    image: str | None = Field(max_length=256)
+    uptime_seconds: int | None = Field(ge=0)
+    restart_count: int | None = Field(ge=0)
+    cpu_percent: float | None = Field(ge=0)
+    memory_bytes: int | None = Field(ge=0)
+
+
+class DependencySnapshot(ApiModel):
+    service_id: id
+    state: ServiceState
+
+
+class LogSource(ApiModel):
+    key: str = Field(max_length=128)
+    label: str = Field(max_length=64)
+    provider: Literal["docker", "journald"]
+    available: bool
+
+
+class UnmappedRuntime(ApiModel):
+    provider: Literal["docker", "systemd"]
+    reference: str = Field(max_length=128)
+    project: str | None = Field(max_length=128)
+    component: str | None = Field(max_length=128)
+    state: str = Field(max_length=64)
+
+
+class Diagnostics(ApiModel):
+    unmapped_runtimes: list[UnmappedRuntime]
+    warnings: list[Annotated[str, Field(max_length=240)]]
+
+
+class ServiceSnapshot(ApiModel):
+    id: id
+    name: str = Field(max_length=64)
+    description: str = Field(max_length=160)
+    territory: Literal["applications", "services", "foundations"]
+    kind: ServiceKind
+    intent: Literal["active", "dormant"]
+    action: ServiceAction
+    state: ServiceState
+    state_reasons: list[StateReason]
+    observed_at: datetime
+    route: RouteSnapshot | None
+    components: list[ComponentSnapshot]
+    dependencies: list[DependencySnapshot]
+    log_sources: list[LogSource]
+
+
+class AtlasSnapshot(ApiModel):
+    schema_version: Literal[1]
+    generated_at: datetime
+    catalog_revision: str = Field(
+        description="SHA-256 digest of the validated, normalized catalog."
+    )
+    fresh: bool
+    providers: list[ProviderStatus]
+    summary: StateSummary
+    territories: list[Territory]
+    services: list[ServiceSnapshot]
+    diagnostics: Diagnostics
+
+
+class LogRecord(ApiModel):
+    timestamp: datetime | None
+    source: str = Field(max_length=128)
+    provider: Literal["docker", "journald"]
+    stream: Literal["stdout", "stderr", "journal", "unknown"]
+    severity: Literal[
+        "debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"
+    ] | None
+    message: str = Field(max_length=16384)
+    truncated: bool
+
+
+class LogsResponse(ApiModel):
+    service_id: id
+    requested_at: datetime
+    source: str | None
+    records: list[LogRecord] = Field(max_length=500)
+    truncated: bool
+
+
+class ErrorDetail(ApiModel):
+    code: str = Field(pattern=r"^[A-Z][A-Z0-9_]*$")
+    message: str = Field(max_length=240)
+    retryable: bool
+
+
+class ErrorResponse(ApiModel):
+    error: ErrorDetail
