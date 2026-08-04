@@ -5,14 +5,18 @@
 # Hyperion independently requires X-Authentik-Username on all management
 # endpoints, so the upstream only ever sees Authentik-verified identity.
 hyperion.carlos-santos.es {
+	# Cert behavior is a deployment input. Real hosts use custom certs:
+	# tls /etc/caddy/certs/hyperion.crt /etc/caddy/certs/hyperion.key
+	# Remove the comment to use ACME instead (the VPS has a global ACME email).
 	route {
 		encode zstd gzip
 
 		# Health endpoints remain loopback-only (404 for any external hit).
-		handle_path /healthz {
+		# Wildcard paths so /healthz/ cannot fall through to forward_auth.
+		handle_path /healthz* {
 			respond 404
 		}
-		handle_path /readyz {
+		handle_path /readyz* {
 			respond 404
 		}
 
@@ -21,11 +25,13 @@ hyperion.carlos-santos.es {
 		# reach the outpost without re-entering forward_auth.
 		reverse_proxy /outpost.goauthentik.io/* 127.0.0.1:9000
 
-		# forward_auth copies the response identity headers over any
-		# client-supplied values, so the app never sees forged identity.
+		# Hyperion requires only X-Authentik-Username; copy_headers SET
+		# semantics overwrite any client-supplied value with the Authentik
+		# response, so header smuggling is not possible (verified).
+		# Add Groups/Email here only when RBAC lands.
 		forward_auth 127.0.0.1:9000 {
 			uri /outpost.goauthentik.io/auth/caddy
-			copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Entitlements X-Authentik-Email X-Authentik-Name X-Authentik-Uid X-Authentik-Jwt X-Authentik-Meta-Jwks X-Authentik-Meta-Outpost X-Authentik-Meta-Provider X-Authentik-Meta-App X-Authentik-Meta-Version
+			copy_headers X-Authentik-Username
 		}
 
 		reverse_proxy 127.0.0.1:8787
