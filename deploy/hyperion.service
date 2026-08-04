@@ -1,0 +1,28 @@
+[Unit]
+Description=Hyperion service atlas
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=hyperion
+Group=hyperion
+EnvironmentFile=/etc/hyperion/env
+WorkingDirectory=/opt/hyperion
+ExecStart=/opt/hyperion/.venv/bin/uvicorn hyperion.main:app --host 127.0.0.1 --port 8787 --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1
+SupplementaryGroups=systemd-journal
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+MemoryDenyWriteExecute=yes
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
