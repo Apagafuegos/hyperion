@@ -193,6 +193,20 @@ def test_helper_policy_rejects_invalid_shapes() -> None:
     assert policy.evaluate("ssh.service", "restart")[0] is False
 
 
+def test_helper_policy_allows_managed_namespace_units() -> None:
+    policy = HelperPolicy()
+    assert policy.evaluate("hyperion-demo.service", "start") == (True, None)
+    assert policy.evaluate("hyperion-demo.service", "disable") == (True, None)
+    assert policy.evaluate("hyperion-demo.timer", "enable") == (True, None)
+    assert policy.evaluate("hyperion-demo.timer", "disable") == (True, None)
+    assert policy.evaluate("hyperion-demo.timer", "start") == (True, None)
+    assert policy.evaluate("hyperion-demo.timer", "enable-now") == (True, None)
+    assert policy.evaluate("hyperion-demo.service", "trigger") == (True, None)
+    assert policy.evaluate("hyperion-demo.service", "write-unit") == (True, None)
+    assert policy.evaluate("hyperion-demo.timer", "remove-unit") == (True, None)
+    assert policy.evaluate("hyperion-evil;rm.service", "restart")[0] is False
+
+
 def test_execute_operation_runs_fixed_argv() -> None:
     calls: list[list[str]] = []
 

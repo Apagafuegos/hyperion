@@ -107,7 +107,7 @@ class HelperPolicy:
             if not managed:
                 return False, "unit is not in the managed namespace"
             return True, None
-        if not _ALLOWED_UNIT_PATTERN.fullmatch(unit):
+        if not _ALLOWED_UNIT_PATTERN.fullmatch(unit) and not managed:
             return False, "invalid unit name"
         if unit in PROTECTED_UNITS:
             return False, "unit is protected by Hyperion policy"
