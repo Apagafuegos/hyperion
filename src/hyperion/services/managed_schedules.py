@@ -160,6 +160,8 @@ class ManagedScheduleManager:
         service_unit, timer_unit = self.unit_names(name)
         previous = self._snapshot(name)
         try:
+            await self._helper_request(timer_unit, "disable")
+            await self._helper_request(service_unit, "disable")
             await self._remove_files(service_unit, timer_unit)
             await self._daemon_reload()
         except Exception as exc:
@@ -292,7 +294,7 @@ class ManagedScheduleManager:
         except (OSError, ConnectionError, TimeoutError) as exc:
             raise ManagedScheduleError(f"privileged helper unavailable: {exc}") from exc
         if not result.get("ok", False):
-            error = str(result.get("error", "unknown error"))
+            error = str(result.get("error") or result.get("stderr") or "unknown error")
             raise ManagedScheduleError(f"privileged operation {operation} failed: {error}")
 
     async def _daemon_reload(self) -> None:
@@ -335,6 +337,11 @@ class ManagedScheduleManager:
             await self._daemon_reload()
         except Exception as exc:
             logger.error("daemon-reload after restore failed: %s", exc)
+        if snapshot:
+            try:
+                await self._helper_request(timer_unit, "enable-now")
+            except Exception as exc:
+                logger.error("could not re-enable %s after restore: %s", timer_unit, exc)
 
     def _unit_dir(self) -> Path:
         return self._managed_unit_dir

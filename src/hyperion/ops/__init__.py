@@ -65,9 +65,9 @@ _ALLOWED_UNIT_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@-]*\.service$")
 
 # Hyperion-managed schedules live in a dedicated allowlisted namespace. The
 # namespace itself is the allowlist: names are shape-constrained and the files
-# are only ever written inside the managed directory.
+# are only ever written directly under the managed systemd directory.
 _MANAGED_UNIT_PATTERN = re.compile(r"^hyperion-[a-z][a-z0-9-]*\.(service|timer)$")
-_DEFAULT_MANAGED_DIR = Path("/etc/systemd/system/hyperion-hyperion.d")
+_DEFAULT_MANAGED_DIR = Path("/etc/systemd/system")
 _MAX_UNIT_BYTES = 16 * 1024
 
 _OPERATION_TYPES = {
@@ -169,6 +169,7 @@ async def execute_operation(
         "returncode": returncode,
         "stdout": stdout.decode("utf-8", errors="replace")[:512],
         "stderr": stderr.decode("utf-8", errors="replace")[:512],
+        "error": stderr.decode("utf-8", errors="replace")[:240] if returncode else "",
         "ok": returncode == 0,
     }
 

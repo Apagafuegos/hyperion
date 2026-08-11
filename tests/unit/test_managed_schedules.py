@@ -188,6 +188,53 @@ async def test_helper_unavailable_surfaces_as_managed_error(tmp_path: Path) -> N
         await manager.create(_definition(), "owner")
 
 
+async def test_delete_disables_timer_before_removal(tmp_path: Path) -> None:
+    manager = _manager(tmp_path)
+    await manager.create(_definition(), "owner")
+    manager._helper.requests.clear()
+    await manager.delete("daily-backup", 0, "owner")
+    ops = [op for (_, op, _) in manager._helper.requests]
+    assert "disable" in ops
+    assert ops.index("disable") < ops.index("remove-unit")
+
+
+async def test_privileged_stderr_surfaces_on_failure(tmp_path: Path) -> None:
+    class StderrHelper:
+        async def request(self, unit, operation, content=None):
+            if operation == "enable-now":
+                return {"ok": False, "returncode": 1, "stderr": "unit does not exist"}
+            return {"ok": True, "returncode": 0}
+
+    activity = ActivityStore(tmp_path / "activity.db")
+    manager = ManagedScheduleManager(
+        tmp_path / "state",
+        activity,
+        helper=StderrHelper(),
+        managed_unit_dir=tmp_path / "systemd",
+    )
+    with pytest.raises(ManagedScheduleError, match="unit does not exist"):
+        await manager.create(_definition(), "owner")
+
+
+async def test_restore_reenables_previous_schedule(tmp_path: Path) -> None:
+    manager = _manager(tmp_path)
+    await manager.create(_definition(), "owner")
+
+    helper = RecordingHelper(tmp_path / "systemd", fail_daemon_reload=True)
+    failing = ManagedScheduleManager(
+        tmp_path / "state",
+        ActivityStore(tmp_path / "activity2.db"),
+        helper=helper,
+        managed_unit_dir=tmp_path / "systemd",
+    )
+    with pytest.raises(ManagedScheduleError, match="rolled back"):
+        await failing.update(
+            "daily-backup", _definition(description="should-not-persist"), 0, "owner"
+        )
+    enables = [u for (u, op, _) in helper.requests if op == "enable-now"]
+    assert enables == ["hyperion-daily-backup.timer"]
+
+
 async def test_list_is_sorted_by_name(tmp_path: Path) -> None:
     manager = _manager(tmp_path)
     await manager.create(_definition(name="b-schedule"), "owner")

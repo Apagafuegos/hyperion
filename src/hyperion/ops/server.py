@@ -55,7 +55,7 @@ def main() -> None:
     parser.add_argument(
         "--managed-dir",
         type=Path,
-        default=Path("/etc/systemd/system/hyperion-hyperion.d"),
+        default=Path("/etc/systemd/system"),
         help="Directory where Hyperion-managed unit files may be written",
     )
     args = parser.parse_args()

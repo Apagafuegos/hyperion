@@ -21,7 +21,7 @@ class Settings:
     host_sample_interval: float = 7.0
     host_history_seconds: int = 1800
     activity_retention_days: int = 90
-    managed_unit_dir: Path = Path("/etc/systemd/system/hyperion-hyperion.d")
+    managed_unit_dir: Path = Path("/etc/systemd/system")
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -41,9 +41,6 @@ class Settings:
             host_history_seconds=int(_env("HYPERION_HOST_HISTORY_SECONDS", "1800")),
             activity_retention_days=int(_env("HYPERION_ACTIVITY_RETENTION_DAYS", "90")),
             managed_unit_dir=Path(
-                _env(
-                    "HYPERION_MANAGED_UNIT_DIR",
-                    "/etc/systemd/system/hyperion-hyperion.d",
-                )
+                _env("HYPERION_MANAGED_UNIT_DIR", "/etc/systemd/system")
             ),
         )

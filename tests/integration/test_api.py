@@ -148,7 +148,7 @@ class FlakyRuntime:
         return await self._inner.read_logs(binding, tail, before)
 
 
-def _fixture_app_settings() -> Settings:
+def _fixture_app_settings(state_dir: Path) -> Settings:
     settings = Settings.from_env()
     return Settings(
         catalog_path=FIXTURES / "fixture-services.yaml",
@@ -157,10 +157,11 @@ def _fixture_app_settings() -> Settings:
         bind_port=settings.bind_port,
         log_level=settings.log_level,
         fixture_mode=True,
+        state_dir=state_dir,
     )
 
 
-def test_snapshot_becomes_ready_after_transient_initial_failure(monkeypatch) -> None:
+def test_snapshot_becomes_ready_after_transient_initial_failure(monkeypatch, tmp_path) -> None:
     """A failed initial cycle must not prevent the supervisor from self-healing."""
     monkeypatch.setattr(
         main_module, "_build_runtime_provider", lambda settings: FlakyRuntime()
@@ -170,7 +171,7 @@ def test_snapshot_becomes_ready_after_transient_initial_failure(monkeypatch) -> 
         "_build_probe_provider",
         lambda settings: FixtureProbeProvider(FIXTURES / "fixture-probes.json"),
     )
-    app = create_app(settings=_fixture_app_settings())
+    app = create_app(settings=_fixture_app_settings(tmp_path / "state"))
     with TestClient(app) as client:
         deadline = time.monotonic() + 5
         response = None

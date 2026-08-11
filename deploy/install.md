@@ -49,7 +49,7 @@ HYPERION_LOG_LEVEL=INFO
 HYPERION_STATE_DIR=/var/lib/hyperion
 HYPERION_OPS_SOCKET=/run/hyperion/ops.sock
 HYPERION_OPS_CALLER_UID=996
-HYPERION_MANAGED_UNIT_DIR=/etc/systemd/system/hyperion-hyperion.d
+HYPERION_MANAGED_UNIT_DIR=/etc/systemd/system
 EOF
        sudo chmod 600 /etc/hyperion/env
        sudo chown root:hyperion /etc/hyperion/env
@@ -59,9 +59,10 @@ EOF
 
    `HYPERION_OPS_CALLER_UID` must be the UID of the `hyperion` system user that
    the web process runs as (`id hyperion`); the privileged helper refuses every
-   other caller. `HYPERION_MANAGED_UNIT_DIR` is the allowlisted namespace where
-   Hyperion-managed schedule unit files may be written; it must match the
-   `hyperion-hyperion.d` path systemd loads under `/etc/systemd/system`.
+   other caller. `HYPERION_MANAGED_UNIT_DIR` is the directory where
+   Hyperion-managed schedule unit files may be written — it must be
+   `/etc/systemd/system` so systemd loads them, and only `hyperion-*` names in
+   that allowlisted namespace are ever touched.
 
 6. Create the operation allowlist (exact unit names an operator may start,
    stop, restart, enable, or disable — mirror the systemd components declared
