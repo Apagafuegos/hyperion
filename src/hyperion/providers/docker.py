@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Any, Literal
 
+from ..catalog import DiscoveredDockerComponent, merge_discovered_docker
 from ..models import Catalog, ComponentState, DockerComponent, HealthState, Service
 from .base import (
     ComponentEvidence,
@@ -95,6 +96,40 @@ class DockerProvider:
     async def close(self) -> None:
         self._pool.shutdown(wait=False)
 
+    async def discover_catalog(self, base: Catalog) -> Catalog:
+        """Merge the current Compose inventory into the file-backed catalog."""
+        client: Any = None
+        try:
+            client = await self._run_sync(lambda: self._client_factory(self._host))
+            containers = await self._run_sync(
+                lambda: client.containers.list(all=True, ignore_removed=True)
+            )
+            discovered: list[DiscoveredDockerComponent] = []
+            for container in containers:
+                attrs = container.attrs
+                labels = attrs.get("Config", {}).get("Labels", {}) or {}
+                if _label_true(labels.get("com.docker.compose.oneoff")):
+                    continue
+                project = labels.get("com.docker.compose.project")
+                component = labels.get("com.docker.compose.service")
+                if not isinstance(project, str) or not isinstance(component, str):
+                    continue
+                discovered.append(
+                    DiscoveredDockerComponent(
+                        project=project,
+                        component=component,
+                        labels={
+                            str(key): str(value)
+                            for key, value in labels.items()
+                            if value is not None
+                        },
+                    )
+                )
+            return merge_discovered_docker(base, discovered)
+        finally:
+            if client is not None:
+                await self._close_client(client)
+
     async def observe(self, catalog: Catalog) -> ProviderObservation:
         observed_at = datetime.now(UTC)
         client: Any = None
@@ -103,6 +138,13 @@ class DockerProvider:
             containers = await self._run_sync(
                 lambda: client.containers.list(all=True, ignore_removed=True)
             )
+
+            excluded_projects: set[str] = set()
+            for container in containers:
+                labels = container.attrs.get("Config", {}).get("Labels", {}) or {}
+                project = labels.get("com.docker.compose.project")
+                if isinstance(project, str) and _label_false(labels.get("hyperion.enabled")):
+                    excluded_projects.add(project)
 
             owned: dict[tuple[str, str], str] = {}
             for service in catalog.services:
@@ -121,6 +163,10 @@ class DockerProvider:
                 service_name = labels.get("com.docker.compose.service")
                 reference = (attrs.get("Name") or "/").lstrip("/")
                 state = str(attrs.get("State", {}).get("Status", "unknown"))[:64]
+                if project in excluded_projects or _label_true(
+                    labels.get("com.docker.compose.oneoff")
+                ):
+                    continue
                 if project is not None and service_name is not None:
                     if (project, service_name) in owned:
                         matches.setdefault((project, service_name), []).append(attrs)
@@ -341,3 +387,11 @@ def _parse_log_lines(
             )
         )
     return records
+
+
+def _label_true(value: object) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _label_false(value: object) -> bool:
+    return str(value).strip().lower() in {"0", "false", "no", "off"}

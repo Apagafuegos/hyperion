@@ -1,0 +1,98 @@
+{
+  "host": {
+    "observedAt": "2026-08-09T09:00:00Z",
+    "fresh": true,
+    "hostname": "meridian-vps",
+    "uptimeSeconds": 1296000,
+    "bootTime": "2026-07-27T09:00:00Z",
+    "cpu": {
+      "utilizationPercent": 12.4,
+      "loadAverage1m": 0.42,
+      "loadAverage5m": 0.38,
+      "loadAverage15m": 0.33
+    },
+    "memory": {
+      "totalBytes": 16777216000,
+      "availableBytes": 12025908428,
+      "usedBytes": 4751307572,
+      "usedPercent": 28.3,
+      "swapTotalBytes": 2147483648,
+      "swapFreeBytes": 2147483648,
+      "swapUsedPercent": 0.0
+    },
+    "filesystems": [
+      {
+        "mountPoint": "/",
+        "device": "/dev/mapper/vg-root",
+        "fstype": "ext4",
+        "totalBytes": 107374182400,
+        "freeBytes": 68719476736,
+        "usedBytes": 38654705664,
+        "usedPercent": 36.0,
+        "totalInodes": 67108864,
+        "freeInodes": 58720256,
+        "inodeUsedPercent": 12.5,
+        "state": "ok"
+      },
+      {
+        "mountPoint": "/var/lib/docker",
+        "device": "/dev/mapper/vg-docker",
+        "fstype": "ext4",
+        "totalBytes": 429496729600,
+        "freeBytes": 42949672960,
+        "usedBytes": 386547056640,
+        "usedPercent": 90.0,
+        "totalInodes": 268435456,
+        "freeInodes": 218103808,
+        "inodeUsedPercent": 18.8,
+        "state": "degraded"
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "eth0",
+        "state": "up",
+        "rxBytesTotal": 20401094656,
+        "txBytesTotal": 8589934592,
+        "rxBytesPerSecond": 14520.5,
+        "txBytesPerSecond": 4201.8
+      },
+      {
+        "name": "tailscale0",
+        "state": "up",
+        "rxBytesTotal": 2147483648,
+        "txBytesTotal": 1073741824,
+        "rxBytesPerSecond": 120.4,
+        "txBytesPerSecond": 88.2
+      }
+    ],
+    "pressure": [
+      {
+        "kind": "cpu",
+        "someAvg10": 2.4,
+        "someAvg300": 1.1,
+        "fullAvg10": 0.8
+      },
+      {
+        "kind": "io",
+        "someAvg10": 0.2,
+        "someAvg300": 0.1,
+        "fullAvg10": 0.0
+      },
+      {
+        "kind": "memory",
+        "someAvg10": 0.0,
+        "someAvg300": 0.0,
+        "fullAvg10": 0.0
+      }
+    ],
+    "temperatures": [
+      {
+        "zone": "x86_pkg_temp",
+        "celsius": 47.5
+      }
+    ],
+    "providerState": "available",
+    "providerMessage": null
+  }
+}

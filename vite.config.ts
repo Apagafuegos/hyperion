@@ -10,7 +10,7 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       input: {
-        atlas: path.resolve(__dirname, "frontend/atlas.ts"),
+        app: path.resolve(__dirname, "frontend/app.ts"),
         styles: path.resolve(__dirname, "frontend/atlas.css"),
       },
       output: {

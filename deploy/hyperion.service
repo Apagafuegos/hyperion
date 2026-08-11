@@ -1,5 +1,5 @@
 [Unit]
-Description=Hyperion service atlas
+Description=Hyperion operations console
 After=network-online.target
 Wants=network-online.target
 
@@ -21,6 +21,7 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 RestrictRealtime=yes
 MemoryDenyWriteExecute=yes
+ReadWritePaths=/var/lib/hyperion /run/hyperion
 Restart=on-failure
 RestartSec=3
 

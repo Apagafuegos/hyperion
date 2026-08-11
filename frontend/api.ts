@@ -122,6 +122,292 @@ export type LogsResult =
   | { status: "ok"; logs: LogsResponse }
   | { status: "error"; code: string; message: string; retryable: boolean };
 
+// --- Operations-console resources -------------------------------------------
+
+export interface FilesystemEvidence {
+  mountPoint: string;
+  device: string;
+  fstype: string;
+  totalBytes: number | null;
+  freeBytes: number | null;
+  usedBytes: number | null;
+  usedPercent: number | null;
+  totalInodes: number | null;
+  freeInodes: number | null;
+  inodeUsedPercent: number | null;
+  state: string;
+}
+
+export interface NetworkInterfaceEvidence {
+  name: string;
+  state: string;
+  rxBytesTotal: number | null;
+  txBytesTotal: number | null;
+  rxBytesPerSecond: number | null;
+  txBytesPerSecond: number | null;
+}
+
+export interface HostMemoryEvidence {
+  totalBytes: number | null;
+  availableBytes: number | null;
+  usedBytes: number | null;
+  usedPercent: number | null;
+  swapTotalBytes: number | null;
+  swapFreeBytes: number | null;
+  swapUsedPercent: number | null;
+}
+
+export interface HostCpuEvidence {
+  utilizationPercent: number | null;
+  loadAverage1m: number | null;
+  loadAverage5m: number | null;
+  loadAverage15m: number | null;
+}
+
+export interface PressureEvidence {
+  kind: string;
+  someAvg10: number | null;
+  someAvg300: number | null;
+  fullAvg10: number | null;
+}
+
+export interface TemperatureEvidence { zone: string; celsius: number | null }
+
+export interface HostEvidence {
+  observedAt: string;
+  fresh: boolean;
+  hostname: string | null;
+  uptimeSeconds: number | null;
+  bootTime: string | null;
+  cpu: HostCpuEvidence;
+  memory: HostMemoryEvidence;
+  filesystems: FilesystemEvidence[];
+  interfaces: NetworkInterfaceEvidence[];
+  pressure: PressureEvidence[];
+  temperatures: TemperatureEvidence[];
+  providerState: string;
+  providerMessage: string | null;
+}
+
+export interface HostHistoryResponse {
+  windowSeconds: number;
+  observedAt: string;
+  samples: HostEvidence[];
+}
+
+export interface UnitSnapshot {
+  name: string;
+  description: string;
+  loadState: string;
+  activeState: string;
+  subState: string;
+  enabledState: string;
+  activeEntered: string | null;
+  mainPid: number | null;
+  restartCount: number | null;
+  memoryBytes: number | null;
+  relatedTimer: string | null;
+  dependencies: string[];
+  relatedService: string | null;
+  protection: string;
+  curated: boolean;
+}
+
+export interface UnitInventoryResponse {
+  generatedAt: string;
+  fresh: boolean;
+  counts: Record<string, number>;
+  units: UnitSnapshot[];
+}
+
+export interface UnitLogsResponse {
+  unit: string;
+  requestedAt: string;
+  records: LogRecord[];
+  truncated: boolean;
+}
+
+export interface ScheduleSnapshot {
+  id: string;
+  name: string;
+  humanReadable: string;
+  rawExpression: string;
+  source: string;
+  nextRun: string | null;
+  lastRun: string | null;
+  lastResult: string;
+  owner: string | null;
+  enabled: boolean;
+  target: string;
+  provenance: string;
+  relatedService: string | null;
+  managed: boolean;
+}
+
+export interface ScheduleInventoryResponse {
+  generatedAt: string;
+  fresh: boolean;
+  schedules: ScheduleSnapshot[];
+}
+
+export interface ManagedScheduleDefinition {
+  name: string;
+  description: string;
+  onCalendar: string;
+  executable: string;
+  arguments: string[];
+  user: string;
+  workingDirectory: string | null;
+  timeoutSeconds: number;
+  overlapPolicy: string;
+  missedRunBehavior: string;
+  relatedService: string | null;
+}
+
+export interface ManagedScheduleView {
+  definition: ManagedScheduleDefinition;
+  revision: number;
+  enabled: boolean;
+  serviceUnit: string;
+  timerUnit: string;
+  installed: boolean;
+  lastResult: string;
+  lastRun: string | null;
+}
+
+export interface ActivityRecord {
+  id: string;
+  occurredAt: string;
+  kind: string;
+  targetType: string;
+  target: string;
+  identity: string;
+  result: string;
+  message: string;
+  evidence: Record<string, string>;
+}
+
+export interface ActivityResponse {
+  since: string | null;
+  requestedAt: string;
+  records: ActivityRecord[];
+}
+
+export type OperationKind = "start" | "stop" | "restart" | "enable" | "disable" | "trigger";
+
+export interface OperationRequest {
+  operation: OperationKind;
+  expectedState: string | null;
+  reason: string;
+}
+
+export interface OperationResult {
+  id: string;
+  unit: string;
+  operation: OperationKind;
+  state: string;
+  message: string;
+  requestedAt: string;
+  reconciledAt: string | null;
+  evidence: Record<string, string>;
+}
+
+export async function fetchHost(): Promise<HostEvidence | null> {
+  try {
+    const response = await fetch("/api/v1/host", { cache: "no-store" });
+    if (!response.ok) return null;
+    return (await response.json()) as HostEvidence;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchHostHistory(window = "30m"): Promise<HostHistoryResponse | null> {
+  try {
+    const response = await fetch(`/api/v1/host/history?window=${encodeURIComponent(window)}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as HostHistoryResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchUnits(): Promise<UnitInventoryResponse | null> {
+  try {
+    const response = await fetch("/api/v1/units", { cache: "no-store" });
+    if (!response.ok) return null;
+    return (await response.json()) as UnitInventoryResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchUnitLogs(unit: string): Promise<UnitLogsResponse | null> {
+  try {
+    const response = await fetch(
+      `/api/v1/units/${encodeURIComponent(unit)}/logs?tail=100`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return null;
+    return (await response.json()) as UnitLogsResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchSchedules(): Promise<ScheduleInventoryResponse | null> {
+  try {
+    const response = await fetch("/api/v1/schedules", { cache: "no-store" });
+    if (!response.ok) return null;
+    return (await response.json()) as ScheduleInventoryResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchActivity(limit = 100): Promise<ActivityResponse | null> {
+  try {
+    const response = await fetch(`/api/v1/activity?limit=${limit}`, { cache: "no-store" });
+    if (!response.ok) return null;
+    return (await response.json()) as ActivityResponse;
+  } catch {
+    return null;
+  }
+}
+
+export type OperationSubmitResult =
+  | { status: "ok"; result: OperationResult }
+  | { status: "error"; message: string };
+
+export async function submitOperation(
+  unit: string,
+  request: OperationRequest,
+  idempotencyKey: string,
+): Promise<OperationSubmitResult> {
+  try {
+    const response = await fetch(`/api/v1/units/${encodeURIComponent(unit)}/operations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
+        Origin: window.location.origin,
+      },
+      body: JSON.stringify(request),
+      cache: "no-store",
+    });
+    const body = (await response.json()) as OperationResult | { error?: { message?: string } };
+    if (!response.ok) {
+      const message = "error" in body ? body.error?.message : undefined;
+      return { status: "error", message: message ?? `Request failed (${response.status}).` };
+    }
+    return { status: "ok", result: body as OperationResult };
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : "Network failure." };
+  }
+}
+
 export async function fetchSnapshot(etag: string | null): Promise<SnapshotResult> {
   try {
     const headers: Record<string, string> = {};

@@ -95,6 +95,8 @@ class LogRecordIn(EvidenceModel):
 
 
 class RuntimeProvider(Protocol):
+    async def discover_catalog(self, base: Catalog) -> Catalog: ...
+
     async def observe(self, catalog: Catalog) -> list[ProviderObservation]: ...
 
     async def read_logs(

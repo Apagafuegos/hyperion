@@ -84,7 +84,7 @@ The initial catalog is expected to describe the following logical services. This
 | T3 Code | Web application | Open `https://t3.carlos-santos.es` | `t3code.service` |
 | Authentik | Web application | Open `https://auth.carlos-santos.es` | Compose project `authentik` |
 | LibreChat | Web application | Open `https://ai.carlos-santos.es` | Compose project `librechat` |
-| RaeCord | Web application | Open `https://rare.carlos-santos.es` | Compose project `rarecord` |
+| RareCord | Web application | Open `https://rare.carlos-santos.es` | Compose project `rarecord` |
 | Langfuse | Web application | Open `https://langfuse.carlos-santos.es` | Compose project `langfuse` |
 | MCP Observatory | Web tool | Open `https://mcp.carlos-santos.es` | Compose project `mcp_observatory` |
 | The Vault | MCP service | Copy endpoint `https://mcp.carlos-santos.es/the-vault/mcp` | Compose project `the-vault` |
@@ -94,7 +94,7 @@ Caddy, Docker, and Tailscale are host infrastructure. They should be added only 
 
 ## 5. Catalog Manifest
 
-The manifest is a versioned, human-maintained YAML file. `schema/services.schema.json` is the normative structural schema. Pydantic models are the runtime implementation and must generate an equivalent JSON Schema in CI. The file is loaded at startup and may be reloaded on file change after validation.
+The manifest is a versioned, human-maintained metadata and systemd overlay. `schema/services.schema.json` is the normative structural schema. Pydantic models are the runtime implementation and must generate an equivalent JSON Schema in CI. The file is loaded at startup and revalidated every runtime cycle; valid changes replace the overlay atomically and invalid changes leave the last valid catalog active. Docker Compose projects and components are discovered from Docker labels every runtime cycle and merged into the overlay before reconciliation.
 
 ```yaml
 version: 1
@@ -219,7 +219,8 @@ Hyperion is one host-native server application with bounded provider interfaces.
 services.yaml ----------> | Catalog Loader      |
                           +----------+----------+
                                      |
-Docker read proxy ------> Docker     |
+Docker read proxy ------> Discovery  +--> Effective catalog
+                          Docker     |
 systemd + journal ------> Systemd    +--> Reconciler --> Snapshot Store
 public HTTPS routes ----> Probes     |                      |
                           +----------+----------------------+---> HTTP API
@@ -229,7 +230,7 @@ public HTTPS routes ----> Probes     |                      |
 
 ### 6.2 Process and concurrency model
 
-- The FastAPI lifespan loads the catalog, creates provider clients, produces the initial snapshot, then starts one refresh supervisor.
+- The FastAPI lifespan loads the catalog overlay, discovers Docker Compose projects, creates provider clients, produces the initial snapshot, then starts one refresh supervisor.
 - Readiness remains false until the catalog validates and the first snapshot is published. Docker or systemd may be unavailable inside a valid partial snapshot.
 - One refresh cycle runs every 15 seconds using monotonic scheduling; overlapping cycles are skipped, never queued.
 - Docker SDK calls run in a bounded thread pool of four workers because the SDK is synchronous.
@@ -245,11 +246,14 @@ public HTTPS routes ----> Probes     |                      |
 
 - Parses and validates the manifest.
 - Rejects duplicate IDs, invalid actions, unsafe URLs, duplicate ownership, and unknown dependencies.
+- Reloads the file overlay and merges Docker discovery every runtime cycle.
 - Keeps the last valid catalog if a live reload fails.
 
 **Docker provider**
 
 - Lists containers and reads inspect, stats, health, Compose labels, and bounded logs.
+- Promotes previously unknown Compose projects to services and appends newly discovered components to existing project overlays.
+- Accepts optional `hyperion.*` metadata labels and honors `hyperion.enabled=false` for implementation-only projects.
 - Does not expose a generic Docker proxy through the Hyperion API.
 - Normalizes transient container IDs behind stable component keys.
 

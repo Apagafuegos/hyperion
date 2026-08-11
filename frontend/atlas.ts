@@ -294,6 +294,40 @@ function parseUrl(value: string): URL | null {
   }
 }
 
+type ActionIcon = "open" | "copy" | "unavailable";
+
+function actionIcon(kind: ActionIcon): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.classList.add("action-icon");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.5");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+
+  const paths = kind === "open"
+    ? ["M6 3.5h6.5V10", "M12.25 3.75 5.5 10.5", "M10 8.5v3H3.5v-6h3"]
+    : kind === "copy"
+      ? ["M5.5 5.5h7v7h-7z", "M3.5 10.5h-1v-7h7v1"]
+      : ["M3.5 8h9"];
+  for (const value of paths) {
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", value);
+    svg.append(path);
+  }
+  return svg;
+}
+
+function setActionContent(action: HTMLAnchorElement, label: string, icon: ActionIcon): void {
+  const text = document.createElement("span");
+  text.className = "action-label";
+  text.textContent = label;
+  action.replaceChildren(text, actionIcon(icon));
+}
+
 function patchRow(row: HTMLElement, service: ServiceSnapshot): void {
   const name = row.querySelector(".service-name") as HTMLElement;
   const description = row.querySelector(".service-description") as HTMLElement;
@@ -314,22 +348,25 @@ function patchRow(row: HTMLElement, service: ServiceSnapshot): void {
 
   if (service.action.type === "open") {
     action.href = service.action.url;
-    action.textContent = "Open ↗";
-    action.setAttribute("aria-label", "Open service");
+    setActionContent(action, "Open", "open");
+    action.setAttribute("aria-label", `Open ${service.name}`);
     action.removeAttribute("aria-disabled");
+    action.removeAttribute("tabindex");
     action.classList.remove("copy-action", "no-action");
   } else if (service.action.type === "copy") {
     action.href = "#";
-    action.textContent = "Copy";
-    action.setAttribute("aria-label", "Copy endpoint");
+    setActionContent(action, "Copy", "copy");
+    action.setAttribute("aria-label", `Copy ${service.name} endpoint`);
     action.removeAttribute("aria-disabled");
+    action.removeAttribute("tabindex");
     action.classList.add("copy-action");
     action.classList.remove("no-action");
   } else {
     action.href = "#";
-    action.textContent = "No route";
-    action.setAttribute("aria-label", "No launch route");
+    setActionContent(action, "No route", "unavailable");
+    action.setAttribute("aria-label", `${service.name} has no launch route`);
     action.setAttribute("aria-disabled", "true");
+    action.setAttribute("tabindex", "-1");
     action.classList.add("no-action");
     action.classList.remove("copy-action");
   }
@@ -422,6 +459,25 @@ function applyFilter(): void {
     if (!dossier.hidden && dossier.dataset.dossierFor) {
       dossier.hidden = !visible.has(dossier.dataset.dossierFor);
     }
+  }
+  document.querySelector(".filter-empty")?.remove();
+  for (const band of document.querySelectorAll<HTMLElement>(".band")) {
+    const hasVisibleService = Array.from(band.querySelectorAll<HTMLElement>(".service-row"))
+      .some((row) => !row.hidden);
+    band.hidden = state.query.trim() !== "" && !hasVisibleService;
+  }
+  if (visible.size === 0 && state.query.trim() !== "") {
+    const note = document.createElement("div");
+    note.className = "atlas-message filter-empty";
+    const copy = document.createElement("span");
+    const title = document.createElement("strong");
+    title.textContent = "No services found";
+    const detail = document.createElement("small");
+    detail.textContent = "Try a service name, endpoint, environment, or component.";
+    copy.append(title, detail);
+    note.append(copy);
+    latitudes.append(note);
+    announce("No services match your search");
   }
   selectService(next);
 }
@@ -713,8 +769,9 @@ async function boot(): Promise<void> {
   wireEvents();
   const result = await fetchSnapshot(null);
   if (result.status === "error") {
+    latitudes.textContent = "";
     const note = document.createElement("p");
-    note.className = "band-empty";
+    note.className = "atlas-message";
     note.textContent = `The atlas could not be loaded: ${result.message}`;
     latitudes.append(note);
   } else if (result.status === "ok") {
@@ -726,4 +783,6 @@ async function boot(): Promise<void> {
   window.setInterval(() => void refreshSnapshot(), POLL_INTERVAL_MS);
 }
 
-void boot();
+export function initAtlas(): void {
+  void boot();
+}

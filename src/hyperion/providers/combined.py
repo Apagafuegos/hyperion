@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Protocol
+from typing import Protocol, cast
 
 from ..models import Catalog
 from .base import LogBinding, LogRecordIn, ProviderObservation, RuntimeProvider
@@ -24,6 +24,12 @@ class CombinedRuntimeProvider(RuntimeProvider):
     def __init__(self, docker: _ObservationProvider, systemd: _ObservationProvider) -> None:
         self._docker = docker
         self._systemd = systemd
+
+    async def discover_catalog(self, base: Catalog) -> Catalog:
+        discover = getattr(self._docker, "discover_catalog", None)
+        if discover is None:
+            return base
+        return cast(Catalog, await discover(base))
 
     async def observe(self, catalog: Catalog) -> list[ProviderObservation]:
         docker_obs, systemd_obs = await asyncio.gather(

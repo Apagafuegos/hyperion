@@ -286,6 +286,29 @@ def test_observe_reports_missing_and_unmapped() -> None:
     assert len(observation.unmapped) == 1
 
 
+def test_discover_catalog_promotes_unmapped_compose_projects() -> None:
+    catalog = load_catalog(FIXTURES / "fixture-services.yaml")
+    factory, _ = make_client()
+    provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
+    enriched = run(provider.discover_catalog(catalog))
+    assert any(service.service_id == "caddy" for service in enriched.services)
+    observation = run(provider.observe(enriched))
+    assert "caddy-1" not in {item.reference for item in observation.unmapped}
+    assert any(component.service_id == "caddy" for component in observation.components)
+
+
+def test_opted_out_compose_project_is_not_unmapped() -> None:
+    catalog = load_catalog(FIXTURES / "fixture-services.yaml")
+    excluded = labels("deploy", "docker-proxy") | {"hyperion.enabled": "false"}
+    containers = [FakeContainer("p1", "docker-proxy", excluded, "running")]
+    factory, _ = make_client(containers)
+    provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
+    enriched = run(provider.discover_catalog(catalog))
+    assert all(service.service_id != "deploy" for service in enriched.services)
+    observation = run(provider.observe(enriched))
+    assert observation.unmapped == []
+
+
 def test_observe_captures_provider_failure() -> None:
     catalog = load_catalog(FIXTURES / "fixture-services.yaml")
 

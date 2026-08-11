@@ -145,3 +145,35 @@ async def test_cycle_recovers_and_publishes_after_transient_failure() -> None:
     snapshot, _ = store.get()
     assert snapshot is not None
     assert snapshot.fresh is True
+
+
+async def test_runtime_cycle_live_reloads_catalog_and_keeps_last_valid(
+    tmp_path: Path,
+) -> None:
+    source = FIXTURES / "fixture-services.yaml"
+    catalog_path = tmp_path / "services.yaml"
+    catalog_path.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    initial = load_catalog(catalog_path)
+    published = []
+    supervisor = RefreshSupervisor(
+        runtime_provider=FixtureRuntimeProvider(
+            FIXTURES / "fixture-evidence.json", FIXTURES / "fixture-logs.json"
+        ),
+        probe_provider=FixtureProbeProvider(FIXTURES / "fixture-probes.json"),
+        catalog=initial,
+        base_catalog=initial,
+        catalog_path=catalog_path,
+        on_catalog=published.append,
+        store=SnapshotStore(),
+    )
+
+    changed = catalog_path.read_text(encoding="utf-8").replace(
+        "name: T3 Code", "name: T3 Reloaded", 1
+    )
+    catalog_path.write_text(changed, encoding="utf-8")
+    await supervisor._runtime_cycle()
+    assert published[-1].services[0].name == "T3 Reloaded"
+
+    catalog_path.write_text("not: a valid catalog", encoding="utf-8")
+    await supervisor._runtime_cycle()
+    assert published[-1].services[0].name == "T3 Reloaded"

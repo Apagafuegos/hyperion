@@ -73,7 +73,7 @@ services:
       sources: [librechat, mongodb]
 
   - id: rarecord
-    name: RaeCord
+    name: RareCord
     description: Personal application
     territory: applications
     kind: web

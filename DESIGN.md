@@ -168,6 +168,9 @@ The shipped palette combines sun-warmed stone and paper with carbon, aged brass,
 - **Label** (Geologica 650, `.56rem–.70rem`): Status, dossier headings, counters, bearing labels, and log levels.
 - **Instrument** (Recursive 400, `.58rem–.68rem`): Coordinates, endpoints, recency, timestamps, sources, and shortcut keycaps.
 - **Bearing value** (Recursive 450, `1.8rem`; `1.45rem` on phone): Peripheral reachability counts.
+- **Instrument value** (Recursive 450, `1.15rem`): The dominant current value inside a host metric instrument; a supporting reading sits beneath it at the label size.
+- **Confirmation title** (Recursive 620, `.95rem`): The heading of the lifted confirmation surface.
+- **Confirmation impact** (Geologica 400, `.72rem`): The exact-target and likely-impact line inside the confirmation surface.
 
 **The Dense Instrument Rule.** Supporting type intentionally lives between `.56rem` and `.85rem`; preserve this hierarchy instead of normalizing every datum to conventional body size. Keep essential actions and service names at the upper end and tertiary telemetry at the lower end.
 
@@ -234,7 +237,133 @@ Thin `1px` rules define nearly every grouping. Strong Carbon rules enclose the c
 - **Type:** Recursive monospace `.64rem` rows; `.56rem` micro labels use the `4px` radius.
 - **Responsive:** Source hides at `900px`; level hides at `620px`; the disclosure remains available without a modal.
 
-## Do's and Don'ts
+## Operations Console Extension
+
+Hyperion grows from a read-only Service Atlas into the single-owner operations
+console for one VPS. This extension is a descendant of the incumbent system: the
+mineral canvas, parchment surfaces, carbon typography, sparse brass, ruled
+fields, shared seams, and the `4/5/8/13px` radius ladder remain the visual law.
+The Atlas is preserved as its own workspace; every new surface must be
+unmistakably the same world.
+
+### Global Workspace Shell
+
+The sticky header now carries product-level destinations:
+
+```text
+Overview | Atlas | Schedules | Units | Activity
+```
+
+- Destinations use the established `44px` target, transparent labeled buttons,
+  Engraved Brass active text, and a `2px` Bearing Brass underline.
+- `Applications`, `Services`, and `Foundations` remain local Atlas destinations
+  and are shown only while the Atlas workspace is active.
+- The header search is workspace-aware: its placeholder, filters, and shortcut
+  keycap stay; only the semantic targets change per workspace.
+- The workspace statement below the header changes per workspace; it never
+  grows beyond the incumbent display ceiling (`clamp(1.65rem, 3vw, 2.55rem)`).
+
+**The Workspace Rule.** Navigation is a seam, not a screen change. The shell is
+the same continuous ruled field; only the active latitude changes.
+
+### Host Metric Instruments
+
+Host telemetry uses a dedicated instrument grammar, never dashboard widgets:
+
+- One dominant current value (Recursive 450, `.9rem–1.15rem`) with a unit.
+- One supporting value or threshold (Geologica 650, `.56rem`) beneath it.
+- A restrained single-line trace (`26px` tall) drawn with thin Weathered Rule
+  guide lines and a Carbon or operational-pigment stroke; never a filled area
+  chart.
+- A written condition line when attention is required, using the operational
+  wash/pigment pair and plain text.
+- Explicit **Fresh**, **Stale**, **Partial**, **Unsupported**, and **Unavailable**
+  states as label chips or written notes — never inferred values.
+
+Instruments sit inside one continuous ruled field, sharing `1px` Weathered Rule
+seams with the page rather than individual card shells. A selected instrument
+opens an inline disclosure for filesystems, interfaces, or supporting evidence.
+
+**The Truthful Instrument Rule.** Hyperion never manufactures a percentage,
+rate, temperature, or history it did not observe. Missing evidence is written as
+absent.
+
+### Attention Band
+
+A single attention band sits above ordinary metric readings on the Overview:
+
+- Rows carry an operational point, a written heading, a short evidence note,
+  and a route to the related record (service, unit, or schedule).
+- The band uses failure/caution washes for real state and stays visually ahead
+  of utilization instruments without becoming a monitoring wall.
+- Empty attention renders a single quiet line: "Nothing needs attention." —
+  not a decorative placeholder.
+
+### Schedule Rows and Dossiers
+
+- Rows: name, human-readable schedule, raw expression (instrument type), next
+  run, last result, owner, and enabled state across one shared ruled row.
+- Provenance labels mark **systemd timer** and **cron** sources with
+  `4px` micro tags; `Not observed` is written explicitly where cron cannot
+  establish a result.
+- An inline dossier reveals the raw calendar/cron expression, execution owner,
+  target, source path, related Atlas service, and a restrained next-24-hours
+  timeline exposing overlap and clustering.
+
+### Unit Rows and Expanded Dossiers
+
+- Rows: unit name (Recursive 620), description, state chip, enabled state,
+  active-since, restart count, memory, and timer relationship.
+- The default inventory is curated (failed, catalog-related, locally authored,
+  Hyperion-managed, recently active); an explicit **All units** filter reveals
+  the full system inventory without letting vendor units dominate.
+- An expanded dossier discloses dependencies, unit definition, journal
+  evidence, protection classification, and related Atlas service.
+
+### Operational Actions
+
+Actions use the existing button grammar extended with explicit states:
+
+- **Primary** — Bearing Brass route button (existing `button-primary`).
+- **Secondary** — Parchment route button (existing `button-route`).
+- **Unavailable** — the existing no-action treatment, with a written reason.
+- **Pending** — Parchment with a quiet carbon label and no elevation; the action
+  waits for a result, it does not spin or pulse theatrically.
+- **Successful** — Reachable Green on Reachable Wash, written as text.
+- **Failed** — Failure Red on Failure Wash, written as text.
+- **Denied** — Caution Ochre on Caution Wash with a written reason (protected
+  unit, stale state, or rate limit).
+
+**The Consequence Rule.** Operational actions look consequential through exact
+labels, expected-state checks, and confirmed impact — never through color,
+glow, or motion. Brass marks intent; operational pigments report the result.
+
+### Confirmation and Impact-Preview Surface
+
+The confirmation surface is the one genuinely lifted UI beyond the toast:
+
+- A parchment panel on the incumbent `toast-lift` shadow, `13px` radius,
+  showing the exact target, typed operation, and likely impact in instrument
+  type, with the protected-unit classification when relevant.
+- **Confirm** (Bearing Brass) and **Cancel** (route button) plus an explicit
+  expected-state line so stale actions are visible before submission.
+- Dismissal with `Esc`, focus returns to the originating control, and reduced
+  motion collapses the entrance to instant.
+
+### Activity Field Notes
+
+Activity is rendered as chronological field notes grouped by day:
+
+- Day headings use the territory-title scale (Recursive 590); records use the
+  dense body and instrument hierarchy.
+- Each record carries a written target, identity, result chip, time, and
+  evidence note.
+- Grouping uses ruled seams and the day heading; no calendar grid appears.
+- Operator actions, schedule executions, recoveries, state changes, and
+  configuration changes all share the same record grammar, distinguished only
+  by their result chip and target.
+
+### Operational Do's and Don'ts
 
 ### Do:
 
@@ -243,6 +372,9 @@ Thin `1px` rules define nearly every grouping. Strong Carbon rules enclose the c
 - **Do** use shared horizontal bands, plotted rules, coordinates, and alignment to make the deployed world feel mapped.
 - **Do** preserve the `.56rem–.85rem` supporting scale and `4/5/8/13px` radius ladder as intentional density choices.
 - **Do** retain text labels, visible brass focus, and reduced-motion behavior alongside visual cues.
+- **Do** keep the Atlas workspace visually and behaviorally identical to its baseline while the shell grows around it.
+- **Do** keep telemetry instruments inside ruled fields with seams, never in generic card grids.
+- **Do** write "Not observed", "Unavailable", and "Unsupported" literally where evidence is absent.
 
 ### Don't:
 
@@ -251,3 +383,6 @@ Thin `1px` rules define nearly every grouping. Strong Carbon rules enclose the c
 - **Don't** make gold a background treatment, a health state, or a decorative glow.
 - **Don't** enlarge every supporting label into ordinary body copy and erase the atlas's instrument hierarchy.
 - **Don't** add decorative shadow to static surfaces or let logs compete with the primary route-opening workflow.
+- **Don't** build generic administrative screens and style them afterward; extend the atlas world or do not ship it.
+- **Don't** let host telemetry dominate service access or turn Hyperion into a monitoring wall.
+- **Don't** infer metrics the provider did not observe, and don't imply precision cron cannot establish.

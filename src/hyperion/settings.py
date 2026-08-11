@@ -1,4 +1,5 @@
-"""Environment configuration; the full v1 surface from TECHNICAL-DESIGN.md 12.2."""
+"""Environment configuration; the full v1 surface from TECHNICAL-DESIGN.md 12.2
+extended for the operations-console phases."""
 
 from __future__ import annotations
 
@@ -15,6 +16,12 @@ class Settings:
     bind_port: int
     log_level: str
     fixture_mode: bool = False
+    state_dir: Path = Path("/var/lib/hyperion")
+    ops_socket_path: Path = Path("/run/hyperion/ops.sock")
+    host_sample_interval: float = 7.0
+    host_history_seconds: int = 1800
+    activity_retention_days: int = 90
+    managed_unit_dir: Path = Path("/etc/systemd/system/hyperion-hyperion.d")
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -28,4 +35,15 @@ class Settings:
             bind_port=int(_env("HYPERION_BIND_PORT", "8787")),
             log_level=_env("HYPERION_LOG_LEVEL", "INFO"),
             fixture_mode=_env("HYPERION_FIXTURE_MODE", "") == "1",
+            state_dir=Path(_env("HYPERION_STATE_DIR", "/var/lib/hyperion")),
+            ops_socket_path=Path(_env("HYPERION_OPS_SOCKET", "/run/hyperion/ops.sock")),
+            host_sample_interval=float(_env("HYPERION_HOST_SAMPLE_INTERVAL", "7")),
+            host_history_seconds=int(_env("HYPERION_HOST_HISTORY_SECONDS", "1800")),
+            activity_retention_days=int(_env("HYPERION_ACTIVITY_RETENTION_DAYS", "90")),
+            managed_unit_dir=Path(
+                _env(
+                    "HYPERION_MANAGED_UNIT_DIR",
+                    "/etc/systemd/system/hyperion-hyperion.d",
+                )
+            ),
         )

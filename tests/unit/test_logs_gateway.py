@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
+from hyperion.api.errors import ApiError
 from hyperion.catalog import load_catalog
 from hyperion.providers.base import LogBinding, LogRecordIn
 from hyperion.services.logs import LogGateway
@@ -51,3 +54,18 @@ async def test_none_timestamped_records_sort_last() -> None:
     gateway = make_gateway([untimed, older])
     response = await gateway.read("authentik", "server", 100, None)
     assert [r.message for r in response.records] == ["timestamped-older", "untimed"]
+
+
+async def test_gateway_resolves_catalog_at_request_time() -> None:
+    catalog = load_catalog(FIXTURES / "fixture-services.yaml")
+    current = [catalog]
+    gateway = LogGateway(
+        FakeRuntime([]), lambda: current[0], resolve_references=lambda: RESOLVED
+    )
+    current[0] = catalog.model_copy(deep=True)
+    current[0].services = [
+        service for service in current[0].services if service.service_id != "authentik"
+    ]
+    with pytest.raises(ApiError) as raised:
+        await gateway.read("authentik", "server", 100, None)
+    assert raised.value.status_code == 404

@@ -1,0 +1,18 @@
+[Unit]
+Description=Hyperion privileged operation helper
+After=hyperion.service
+Requires=hyperion.service
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/etc/hyperion/env
+ExecStart=/opt/hyperion/.venv/bin/python -m hyperion.ops.server --socket /run/hyperion/ops.sock --allowlist /etc/hyperion/ops-allowlist.json --caller-uid ${HYPERION_OPS_CALLER_UID} --managed-dir ${HYPERION_MANAGED_UNIT_DIR}
+RuntimeDirectory=hyperion
+RuntimeDirectoryMode=0750
+NoNewPrivileges=no
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

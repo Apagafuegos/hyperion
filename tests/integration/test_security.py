@@ -92,3 +92,23 @@ def test_logs_endpoint_never_returns_raw_environment(client) -> None:
     assert response.status_code == 200
     assert "Environment" not in response.text
     assert "Env" not in response.text
+
+
+def test_responses_require_revalidation_never_stale(client) -> None:
+    # Static assets and the HTML are served behind a CDN proxy with no
+    # content hashing, so stale cached copies (browser or edge) must never
+    # outlive a deploy. `no-cache` forces revalidation on every load; the
+    # origin answers with 304/ETag when unchanged.
+    for path in ("/", "/static/assets/styles.css", "/static/assets/app.js"):
+        response = get(client, path)
+        assert response.status_code == 200, path
+        assert response.headers["cache-control"] == "no-cache", path
+
+
+def test_api_keeps_explicit_cache_policies(client) -> None:
+    # The API endpoints carry contract-tested cache policies that must not
+    # be overridden by the revalidation default above.
+    snapshot = get(client, "/api/v1/snapshot")
+    assert snapshot.headers["cache-control"] == "private, max-age=0, must-revalidate"
+    logs = get(client, "/api/v1/services/langfuse/logs?tail=50")
+    assert logs.headers["cache-control"] == "private, no-store"

@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from hyperion.catalog import CatalogError, catalog_revision, load_catalog
+from hyperion.catalog import (
+    CatalogError,
+    DiscoveredDockerComponent,
+    catalog_revision,
+    load_catalog,
+    merge_discovered_docker,
+)
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
@@ -193,3 +199,87 @@ def test_revision_is_stable_and_sensitive(fixture_catalog_path: Path) -> None:
     changed = a.model_copy(deep=True)
     changed.services[0].description = "changed"
     assert catalog_revision(changed) != catalog_revision(a)
+
+
+def discovered(project: str, component: str, **labels: str) -> DiscoveredDockerComponent:
+    return DiscoveredDockerComponent(project=project, component=component, labels=labels)
+
+
+def test_docker_discovery_promotes_an_unknown_compose_project(
+    fixture_catalog_path: Path,
+) -> None:
+    merged = merge_discovered_docker(
+        load_catalog(fixture_catalog_path),
+        [discovered("caddy", "caddy")],
+    )
+    service = next(item for item in merged.services if item.service_id == "caddy")
+    assert service.name == "Caddy"
+    assert service.runtime.provider == "docker-compose"
+    assert service.runtime.project == "caddy"
+    assert service.runtime.components[0].selector == "caddy"
+    assert service.runtime.components[0].role == "primary"
+    assert service.logs.sources == ["caddy"]
+
+
+def test_docker_discovery_reads_service_metadata_labels(
+    fixture_catalog_path: Path,
+) -> None:
+    merged = merge_discovered_docker(
+        load_catalog(fixture_catalog_path),
+        [
+            discovered(
+                "hybrid_rag",
+                "api",
+                **{
+                    "hyperion.primary": "true",
+                    "hyperion.id": "hybrid-rag",
+                    "hyperion.name": "Hybrid RAG",
+                    "hyperion.description": "Retrieval service",
+                    "hyperion.territory": "services",
+                    "hyperion.kind": "api",
+                    "hyperion.url": "https://rag.example.com",
+                    "hyperion.probe": "true",
+                },
+            ),
+            discovered(
+                "hybrid_rag",
+                "qdrant",
+                **{"hyperion.role": "dependency", "hyperion.required": "true"},
+            ),
+        ],
+    )
+    service = next(item for item in merged.services if item.service_id == "hybrid-rag")
+    assert service.name == "Hybrid RAG"
+    assert service.kind == "api"
+    assert service.action.type == "open"
+    assert service.route_probe is not None
+    assert {item.selector: item.role for item in service.runtime.components} == {
+        "api": "primary",
+        "qdrant": "dependency",
+    }
+
+
+def test_docker_discovery_extends_existing_catalog_components(
+    fixture_catalog_path: Path,
+) -> None:
+    merged = merge_discovered_docker(
+        load_catalog(fixture_catalog_path),
+        [discovered("authentik", "redis")],
+    )
+    service = next(item for item in merged.services if item.service_id == "authentik")
+    assert service.runtime.provider == "docker-compose"
+    redis = next(item for item in service.runtime.components if item.selector == "redis")
+    assert redis.role == "sidecar"
+    assert redis.required is False
+    assert "redis" in service.logs.sources
+
+
+def test_docker_discovery_honors_project_opt_out(fixture_catalog_path: Path) -> None:
+    merged = merge_discovered_docker(
+        load_catalog(fixture_catalog_path),
+        [discovered("deploy", "docker-proxy", **{"hyperion.enabled": "false"})],
+    )
+    assert all(
+        service.runtime.provider != "docker-compose" or service.runtime.project != "deploy"
+        for service in merged.services
+    )

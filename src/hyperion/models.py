@@ -344,3 +344,247 @@ class ErrorDetail(ApiModel):
 
 class ErrorResponse(ApiModel):
     error: ErrorDetail
+
+
+# ---------------------------------------------------------------------------
+# Host telemetry models (operations-console Phase 2)
+# ---------------------------------------------------------------------------
+
+type FilesystemState = Literal["ok", "full", "inode_pressure", "degraded", "unavailable"]
+type InterfaceState = Literal["up", "down", "unknown"]
+
+
+class FilesystemEvidence(ApiModel):
+    mount_point: str = Field(max_length=240)
+    device: str = Field(max_length=240)
+    fstype: str = Field(max_length=64)
+    total_bytes: int | None = Field(ge=0)
+    free_bytes: int | None = Field(ge=0)
+    used_bytes: int | None = Field(ge=0)
+    used_percent: float | None = Field(ge=0, le=100)
+    total_inodes: int | None = Field(ge=0)
+    free_inodes: int | None = Field(ge=0)
+    inode_used_percent: float | None = Field(ge=0, le=100)
+    state: FilesystemState
+
+
+class NetworkInterfaceEvidence(ApiModel):
+    name: str = Field(max_length=64)
+    state: InterfaceState
+    rx_bytes_total: int | None = Field(ge=0)
+    tx_bytes_total: int | None = Field(ge=0)
+    rx_bytes_per_second: float | None = Field(ge=0)
+    tx_bytes_per_second: float | None = Field(ge=0)
+
+
+class HostMemoryEvidence(ApiModel):
+    total_bytes: int | None = Field(ge=0)
+    available_bytes: int | None = Field(ge=0)
+    used_bytes: int | None = Field(ge=0)
+    used_percent: float | None = Field(ge=0, le=100)
+    swap_total_bytes: int | None = Field(ge=0)
+    swap_free_bytes: int | None = Field(ge=0)
+    swap_used_percent: float | None = Field(ge=0, le=100)
+
+
+class HostCpuEvidence(ApiModel):
+    utilization_percent: float | None = Field(ge=0, le=100)
+    load_average_1m: float | None = Field(ge=0)
+    load_average_5m: float | None = Field(ge=0)
+    load_average_15m: float | None = Field(ge=0)
+
+
+class PressureEvidence(ApiModel):
+    kind: Literal["cpu", "io", "memory"]
+    some_avg_10: float | None = Field(ge=0)
+    some_avg_300: float | None = Field(ge=0)
+    full_avg_10: float | None = Field(ge=0)
+
+
+class TemperatureEvidence(ApiModel):
+    zone: str = Field(max_length=128)
+    celsius: float | None
+
+
+class HostEvidence(ApiModel):
+    observed_at: datetime
+    fresh: bool
+    hostname: str | None = Field(default=None, max_length=64)
+    uptime_seconds: float | None = Field(ge=0)
+    boot_time: datetime | None
+    cpu: HostCpuEvidence
+    memory: HostMemoryEvidence
+    filesystems: list[FilesystemEvidence]
+    interfaces: list[NetworkInterfaceEvidence]
+    pressure: list[PressureEvidence]
+    temperatures: list[TemperatureEvidence]
+    provider_state: Literal["available", "degraded", "unavailable"]
+    provider_message: str | None = Field(default=None, max_length=240)
+
+
+class HostHistoryResponse(ApiModel):
+    window_seconds: int = Field(ge=0)
+    observed_at: datetime
+    samples: list[HostEvidence]
+
+
+# ---------------------------------------------------------------------------
+# Units inventory models (operations-console Phase 3)
+# ---------------------------------------------------------------------------
+
+type UnitState = Literal[
+    "active", "activating", "reloading", "deactivating", "inactive", "failed", "unknown"
+]
+type UnitFileState = Literal[
+    "enabled", "enabled-runtime", "linked", "masked", "disabled", "static",
+    "indirect", "generated", "transient", "bad", "not-found", "unknown"
+]
+
+
+class UnitSnapshot(ApiModel):
+    name: str = Field(max_length=128)
+    description: str = Field(default="", max_length=256)
+    load_state: Literal["loaded", "not-found", "error", "masked", "unknown"] = "unknown"
+    active_state: UnitState = "unknown"
+    sub_state: str = Field(default="unknown", max_length=64)
+    enabled_state: UnitFileState = "unknown"
+    active_entered: datetime | None
+    main_pid: int | None = Field(ge=0)
+    restart_count: int | None = Field(ge=0)
+    memory_bytes: int | None = Field(ge=0)
+    related_timer: str | None = Field(default=None, max_length=128)
+    dependencies: list[str] = Field(default=[], max_length=64)
+    related_service: str | None = Field(default=None, max_length=64)
+    protection: Literal["protected", "allowlisted", "ordinary"] = "ordinary"
+    curated: bool = False
+
+
+class UnitInventoryResponse(ApiModel):
+    generated_at: datetime
+    fresh: bool
+    counts: dict[str, int] = Field(description="Counts by active state.")
+    units: list[UnitSnapshot]
+
+
+class UnitLogsResponse(ApiModel):
+    unit: str = Field(max_length=128)
+    requested_at: datetime
+    records: list[LogRecord] = Field(max_length=500)
+    truncated: bool
+
+
+# ---------------------------------------------------------------------------
+# Schedule inventory models (operations-console Phase 3/6)
+# ---------------------------------------------------------------------------
+
+type ScheduleSource = Literal["systemd", "cron", "managed"]
+type ScheduleResult = Literal["success", "failed", "not_observed", "pending", "unknown"]
+
+
+class ScheduleSnapshot(ApiModel):
+    id: str = Field(max_length=128)
+    name: str = Field(max_length=128)
+    human_readable: str = Field(default="", max_length=256)
+    raw_expression: str = Field(default="", max_length=512)
+    source: ScheduleSource
+    next_run: datetime | None
+    last_run: datetime | None
+    last_result: ScheduleResult = "unknown"
+    owner: str | None = Field(default=None, max_length=64)
+    enabled: bool = True
+    target: str = Field(default="", max_length=256)
+    provenance: str = Field(default="", max_length=256)
+    related_service: str | None = Field(default=None, max_length=64)
+    managed: bool = False
+
+
+class ScheduleInventoryResponse(ApiModel):
+    generated_at: datetime
+    fresh: bool
+    schedules: list[ScheduleSnapshot]
+
+
+class ManagedScheduleDefinition(ApiModel):
+    name: str = Field(pattern=r"^[a-z][a-z0-9-]*$", min_length=1, max_length=64)
+    description: str = Field(default="", max_length=256)
+    on_calendar: str = Field(min_length=1, max_length=128)
+    executable: str = Field(pattern=r"^/[^ \t]+$", min_length=1, max_length=256)
+    arguments: list[str] = Field(default=[], max_length=64)
+    user: str = Field(pattern=r"^[a-z_][a-z0-9_-]*$", default="root", max_length=64)
+    working_directory: str | None = Field(default=None, pattern=r"^/[^ \t]*$", max_length=256)
+    timeout_seconds: int = Field(default=3600, ge=1, le=86400)
+    overlap_policy: Literal["allow", "drop", "queue"] = "drop"
+    missed_run_behavior: Literal["ignore", "catch_up"] = "ignore"
+    related_service: str | None = Field(default=None, max_length=64)
+
+
+class ManagedScheduleView(ApiModel):
+    definition: ManagedScheduleDefinition
+    revision: int = Field(ge=0)
+    enabled: bool = True
+    service_unit: str = Field(max_length=128)
+    timer_unit: str = Field(max_length=128)
+    installed: bool = False
+    last_result: ScheduleResult = "unknown"
+    last_run: datetime | None
+
+
+# ---------------------------------------------------------------------------
+# Activity models (operations-console Phase 4)
+# ---------------------------------------------------------------------------
+
+type ActivityKind = Literal[
+    "host_threshold",
+    "unit_transition",
+    "service_transition",
+    "schedule_execution",
+    "schedule_change",
+    "operation",
+]
+type ActivityResult = Literal["success", "failure", "warning", "pending", "info", "denied"]
+
+
+class ActivityRecord(ApiModel):
+    id: str = Field(max_length=64)
+    occurred_at: datetime
+    kind: ActivityKind
+    target_type: Literal["host", "unit", "service", "schedule", "system"] = "system"
+    target: str = Field(max_length=128)
+    identity: str = Field(default="system", max_length=64)
+    result: ActivityResult = "info"
+    message: str = Field(max_length=512)
+    evidence: dict[str, str] = Field(default={}, max_length=32)
+
+
+class ActivityResponse(ApiModel):
+    since: datetime | None
+    requested_at: datetime
+    records: list[ActivityRecord] = Field(max_length=200)
+
+
+# ---------------------------------------------------------------------------
+# Operations models (operations-console Phase 5)
+# ---------------------------------------------------------------------------
+
+type OperationKind = Literal["start", "stop", "restart", "enable", "disable", "trigger"]
+type OperationState = Literal[
+    "pending", "success", "partial", "timeout", "failed", "denied", "stale",
+    "helper_unavailable",
+]
+
+
+class OperationRequest(ApiModel):
+    operation: OperationKind
+    expected_state: UnitState | None = None
+    reason: str = Field(default="", max_length=240)
+
+
+class OperationResult(ApiModel):
+    id: str = Field(max_length=64)
+    unit: str = Field(max_length=128)
+    operation: OperationKind
+    state: OperationState
+    message: str = Field(default="", max_length=512)
+    requested_at: datetime
+    reconciled_at: datetime | None
+    evidence: dict[str, str] = Field(default={}, max_length=32)

@@ -54,7 +54,7 @@ services:
 """
 
 
-def _settings(catalog_path: Path) -> Settings:
+def _settings(catalog_path: Path, state_dir: Path | None = None) -> Settings:
     base = Settings.from_env()
     return Settings(
         catalog_path=catalog_path,
@@ -63,6 +63,8 @@ def _settings(catalog_path: Path) -> Settings:
         bind_port=base.bind_port,
         log_level=base.log_level,
         fixture_mode=True,
+        state_dir=state_dir or base.state_dir,
+        managed_unit_dir=state_dir / "systemd" if state_dir else base.managed_unit_dir,
     )
 
 
@@ -83,7 +85,7 @@ def _assert_unavailable(client: TestClient) -> None:
 
 
 def test_missing_catalog_keeps_health_up_but_not_ready(tmp_path) -> None:
-    settings = _settings(tmp_path / "missing.yaml")
+    settings = _settings(tmp_path / "missing.yaml", state_dir=tmp_path / "state")
     with TestClient(create_app(settings=settings)) as client:
         _assert_unavailable(client)
 
@@ -91,7 +93,8 @@ def test_missing_catalog_keeps_health_up_but_not_ready(tmp_path) -> None:
 def test_valid_catalog_with_no_services(tmp_path) -> None:
     catalog = tmp_path / "empty.yaml"
     catalog.write_text("version: 1\nservices: []\n", encoding="utf-8")
-    with TestClient(create_app(settings=_settings(catalog))) as client:
+    app = create_app(settings=_settings(catalog, state_dir=tmp_path / "state"))
+    with TestClient(app) as client:
         payload = get(client, "/api/v1/snapshot").json()
         assert payload["summary"]["total"] == 0
         assert [t["id"] for t in payload["territories"]] == [
@@ -111,7 +114,8 @@ def test_valid_catalog_with_no_services(tmp_path) -> None:
 def test_invalid_catalog_keeps_health_up_but_not_ready(tmp_path, catalog_text) -> None:
     catalog = tmp_path / "invalid.yaml"
     catalog.write_text(catalog_text, encoding="utf-8")
-    with TestClient(create_app(settings=_settings(catalog))) as client:
+    app = create_app(settings=_settings(catalog, state_dir=tmp_path / "state"))
+    with TestClient(app) as client:
         _assert_unavailable(client)
 
 
@@ -125,24 +129,26 @@ class BrokenRuntime:
         raise RuntimeError("docker unavailable")
 
 
-def test_provider_unavailable_keeps_health_up_but_not_ready(monkeypatch) -> None:
+def test_provider_unavailable_keeps_health_up_but_not_ready(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(main_module, "_build_runtime_provider", lambda settings: BrokenRuntime())
-    with TestClient(
-        create_app(settings=_settings(FIXTURES / "fixture-services.yaml"))
-    ) as client:
+    app = create_app(
+        settings=_settings(FIXTURES / "fixture-services.yaml", state_dir=tmp_path / "state")
+    )
+    with TestClient(app) as client:
         _assert_unavailable(client)
 
 
-def test_provider_unavailable_logs_report_unavailable(monkeypatch) -> None:
+def test_provider_unavailable_logs_report_unavailable(monkeypatch, tmp_path) -> None:
     # t3-code is a systemd source: the unit name is the reference, so the
     # gateway reaches read_logs directly and the broken provider surfaces
     # as a bounded LOG_SOURCE_UNAVAILABLE (docker references cannot resolve
     # at all without a published snapshot, so systemd is the path that
     # exercises the provider boundary).
     monkeypatch.setattr(main_module, "_build_runtime_provider", lambda settings: BrokenRuntime())
-    with TestClient(
-        create_app(settings=_settings(FIXTURES / "fixture-services.yaml"))
-    ) as client:
+    app = create_app(
+        settings=_settings(FIXTURES / "fixture-services.yaml", state_dir=tmp_path / "state")
+    )
+    with TestClient(app) as client:
         response = client.get(
             "/api/v1/services/t3-code/logs?tail=50",
             headers={"X-Authentik-Username": "owner"},

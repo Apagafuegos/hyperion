@@ -92,23 +92,78 @@
       "description": "A native, closed-by-default disclosure for tertiary operational context.",
       "html": "<details class=\"log-drawer\"><summary><strong>Logs</strong><span class=\"log-count\">5</span><small>Recent events across the illustrative atlas</small><span class=\"open-label\">Open drawer</span></summary><div class=\"log-row\"><time>12:41:18</time><b class=\"log-level\">INFO</b><span>Atlas API health check passed</span><code>atlas-api</code></div></details>",
       "css": ".log-drawer{margin-top:26px;border:1px solid #CEC4B2;border-radius:13px;background:#FBF8F0;color:#282824;font-family:Geologica,sans-serif}.log-drawer summary{display:flex;align-items:center;min-height:56px;padding:0 18px;cursor:pointer}.log-drawer summary strong{font:620 .82rem Recursive,sans-serif}.log-drawer summary small{margin-left:20px;color:#615F57;font-size:.66rem}.open-label{margin-left:auto;color:#705317;font-size:.65rem}.log-count{margin-left:9px;padding:3px 6px;border:1px solid #CEC4B2;border-radius:5px;color:#615F57;font:400 .58rem Recursive,monospace}.log-row{display:grid;grid-template-columns:76px 64px 1fr 140px;gap:14px;padding:11px 18px;border-top:1px solid #CEC4B2;font:400 .64rem Recursive,monospace}.log-level{width:fit-content;padding:2px 5px;border-radius:4px;background:#E4ECE2;color:#4F6B54;font-size:.56rem}"
+    },
+    {
+      "name": "Workspace Destination",
+      "kind": "nav",
+      "refersTo": "nav-destination",
+      "description": "Product-level destination in the sticky shell header; the active workspace uses engraved brass text and a 2px brass underline.",
+      "html": "<nav class=\"workspace-nav\" aria-label=\"Workspaces\"><a class=\"workspace-link active\" href=\"/overview\">Overview</a><a class=\"workspace-link\" href=\"/atlas\">Atlas</a><a class=\"workspace-link\" href=\"/schedules\">Schedules</a><a class=\"workspace-link\" href=\"/units\">Units</a><a class=\"workspace-link\" href=\"/activity\">Activity</a></nav>",
+      "css": ".workspace-nav{display:flex;gap:8px}.workspace-link{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 13px;color:#282824;text-decoration:none;font-weight:620;font-size:.68rem;border-bottom:2px solid transparent}.workspace-link:hover{color:#705317}.workspace-link.active{color:#705317;border-bottom-color:#876721}.workspace-link:focus-visible{outline:3px solid #876721;outline-offset:2px}"
+    },
+    {
+      "name": "Host Metric Instrument",
+      "kind": "custom",
+      "description": "One dominant value, one supporting threshold, and a restrained single-line trace inside a shared ruled field.",
+      "html": "<div class=\"instrument instrument-cpu\"><header><span class=\"instrument-title\">CPU</span><span class=\"instrument-state\">Fresh</span></header><div class=\"instrument-value\">12.4<span class=\"instrument-unit\">%</span></div><div class=\"instrument-support\">load 0.42 / 0.38 / 0.33</div><div class=\"instrument-trace\" aria-hidden=\"true\"><svg viewBox=\"0 0 120 26\" preserveAspectRatio=\"none\"><polyline points=\"0,20 12,18 24,19 36,15 48,16 60,12 72,13 84,10 96,11 108,7 120,8\"/></svg></div></div>",
+      "css": ".instrument{padding:13px 0;border-bottom:1px solid #CEC4B2}.instrument-header{display:flex;justify-content:space-between;align-items:baseline}.instrument-title{font:650 .56rem Geologica,sans-serif;color:#615F57;letter-spacing:.02em}.instrument-state{padding:2px 5px;border-radius:4px;background:#E4ECE2;color:#4F6B54;font:400 .56rem Recursive,monospace}.instrument-value{font:450 1.15rem Recursive,sans-serif;letter-spacing:-.02em}.instrument-unit{font-size:.6rem;color:#615F57}.instrument-support{margin-top:2px;color:#615F57;font-size:.58rem;font-family:Recursive,monospace}.instrument-trace{height:26px;margin-top:6px}.instrument-trace svg{width:100%;height:100%}.instrument-trace polyline{fill:none;stroke:#282824;stroke-width:1.2}"
+    },
+    {
+      "name": "Attention Row",
+      "kind": "custom",
+      "description": "Attention outranks ordinary metric readings; a written heading and evidence note with a route to the related record.",
+      "html": "<div class=\"attention-band\"><h2>Needs attention</h2><div class=\"attention-row\"><span class=\"route-dot dot-down\"></span><a href=\"/units/systemd\" class=\"attention-target\">systemd-networkd.service</a><span class=\"attention-note\">Failed — restart threshold reached</span><span class=\"attention-time\">2m ago</span></div></div>",
+      "css": ".attention-band{border:1px solid #F2DFDB;border-radius:13px;background:#F2DFDB;padding:13px 16px;margin-bottom:26px}.attention-band>h2{margin:0 0 8px;color:#9B433B;font:620 .82rem Recursive,sans-serif;letter-spacing:-.018em}.attention-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:.67rem}.attention-target{color:#282824;text-decoration:none;font-weight:620}.attention-target:hover{color:#705317}.attention-note{color:#615F57;font-size:.64rem}.attention-time{margin-left:auto;color:#615F57;font:400 .58rem Recursive,monospace}"
+    },
+    {
+      "name": "Schedule Row",
+      "kind": "custom",
+      "description": "Name, human-readable schedule, raw expression, next run, last result, owner, and enabled state across one ruled row.",
+      "html": "<div class=\"schedule-row\"><div class=\"schedule-main\"><strong class=\"schedule-name\">daily-backup</strong><code class=\"schedule-expr\">*-*-* 02:00:00</code><span class=\"provenance provenance-timer\">systemd timer</span></div><span class=\"schedule-next\">02:00 today</span><span class=\"status status-reachable\">Passed</span><span class=\"schedule-owner\">root</span><span class=\"schedule-enabled\">Enabled</span></div>",
+      "css": ".schedule-row{display:grid;grid-template-columns:minmax(220px,1.4fr) .8fr .6fr .6fr .6fr;align-items:center;min-height:48px;border-bottom:1px solid #CEC4B2;padding:0 16px;font-size:.67rem}.schedule-main{min-width:0}.schedule-name{display:block;font:620 .85rem Recursive,sans-serif;letter-spacing:-.018em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.schedule-expr{display:block;color:#615F57;font:400 .58rem Recursive,monospace}.provenance{display:inline-block;margin-top:3px;padding:2px 5px;border-radius:4px;font-size:.56rem}.provenance-timer{background:#E8E6E0;color:#65665F}.provenance-cron{background:#E4ECE2;color:#4F6B54}.schedule-owner{color:#615F57}"
+    },
+    {
+      "name": "Unit Row",
+      "kind": "custom",
+      "description": "Unit name, description, state chip, enabled state, active-since, restart count, memory, and timer relationship.",
+      "html": "<div class=\"unit-row\" data-unit=\"t3code.service\"><button class=\"unit-select\"><span class=\"chevron\">›</span><span><strong class=\"unit-name\">t3code.service</strong><small class=\"unit-description\">T3 Code service</small></span></button><span class=\"status status-reachable\">Active</span><span class=\"unit-enabled\">Enabled</span><code class=\"unit-since\">up 12d</code><code class=\"unit-restarts\">0 restarts</code><code class=\"unit-mem\">148 MiB</code></div>",
+      "css": ".unit-row{display:grid;grid-template-columns:minmax(220px,1.4fr) .55fr .5fr .5fr .6fr .5fr;align-items:center;min-height:48px;border-bottom:1px solid #CEC4B2;font-size:.67rem}.unit-row:hover{background:color-mix(in srgb,#EBE0BE 40%,transparent)}.unit-row.selected{background:color-mix(in srgb,#EBE0BE 62%,transparent)}.unit-select{display:flex;align-items:center;gap:10px;align-self:stretch;padding:7px 14px;border:0;background:transparent;color:#282824;text-align:left;font:inherit;cursor:pointer;min-width:0}.unit-name{display:block;font:620 .85rem Recursive,sans-serif;letter-spacing:-.018em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.unit-description{display:block;margin-top:2px;color:#615F57;font-size:.64rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.unit-enabled,.unit-since,.unit-restarts,.unit-mem{color:#615F57;font:400 .6rem Recursive,monospace}"
+    },
+    {
+      "name": "Activity Record",
+      "kind": "custom",
+      "description": "Chronological field note with target, identity, result chip, time, and evidence, grouped under a day heading.",
+      "html": "<h3 class=\"activity-day\">Today</h3><div class=\"activity-record\"><time class=\"activity-time\">09:14:02</time><code class=\"activity-target\">t3code.service</code><span class=\"status status-reachable\">Success</span><span class=\"activity-note\">Service state changed to active (start)</span><code class=\"activity-identity\">operator</code></div>",
+      "css": ".activity-day{margin:26px 0 0;font:590 1.08rem Recursive,sans-serif;letter-spacing:-.02em;border-bottom:1px solid #282824;padding-bottom:8px}.activity-record{display:grid;grid-template-columns:76px 170px .6fr 1fr 120px;gap:14px;align-items:center;min-height:40px;border-bottom:1px solid #CEC4B2;font-size:.67rem}.activity-time,.activity-target,.activity-identity{color:#615F57;font:400 .6rem Recursive,monospace}.activity-note{min-width:0}"
+    },
+    {
+      "name": "Operational Action",
+      "kind": "button",
+      "description": "An operational action in primary, secondary, pending, successful, failed, or denied states; brass marks intent, pigments report result.",
+      "html": "<button class=\"op-action op-primary\">Restart unit</button>",
+      "css": ".op-action{display:inline-flex;align-items:center;justify-content:center;min-height:35px;padding:0 10px;border-radius:8px;font:650 .67rem Geologica,sans-serif;cursor:pointer;border:1px solid transparent}.op-primary{background:#876721;color:#FBF8F0}.op-primary:hover{background:#705317}.op-secondary{border-color:#CEC4B2;background:#FBF8F0;color:#282824}.op-secondary:hover{background:color-mix(in srgb,#EBE0BE 40%,transparent)}.op-pending{color:#615F57;cursor:wait}.op-success{background:#E4ECE2;color:#4F6B54}.op-failed{background:#F2DFDB;color:#9B433B}.op-denied{background:#F3E8CE;color:#8A5D16}.op-action:focus-visible{outline:3px solid #876721;outline-offset:3px}"
     }
   ],
   "narrative": {
     "northStar": "The Service Atlas — Latitude Bands",
-    "overview": "Hyperion renders one owner's deployed world as a compact latitude atlas: horizontal Applications, Services, and Foundations territories hold service routes, an inline dossier appears only for the selected route, a narrow bearings rail summarizes state, and logs remain closed until requested. Warm mineral fields and carbon type do the daily work; rare brass marks identity, focus, selection, and direct routes.",
+    "overview": "Hyperion renders one owner's deployed world as a compact latitude atlas: horizontal Applications, Services, and Foundations territories hold service routes, an inline dossier appears only for the selected route, a narrow bearings rail summarizes state, and logs remain closed until requested. Warm mineral fields and carbon type do the daily work; rare brass marks identity, focus, selection, and direct routes. The operations-console extension adds Overview, Schedules, Units, and Activity workspaces as descendants of the same world: host metric instruments live in one ruled field, operational actions report consequences in operational pigment, and the Atlas itself remains the preserved incumbent surface.",
     "keyCharacteristics": [
       "Horizontal latitude bands, coordinate margins, and shared cartographic rules instead of a card grid.",
       "Dense .56rem–.85rem supporting type with a compact Recursive statement scale.",
       "Intentional 4px, 5px, 8px, and 13px micro-to-control radii.",
       "Rare brass for orientation and action; independent pigments for service state.",
-      "Dossiers and logs provide operational depth on demand."
+      "Dossiers and logs provide operational depth on demand.",
+      "A global shell of five workspaces that extends the atlas world without replacing it.",
+      "Truthful telemetry instruments and consequential operational actions inside the same ruled system."
     ],
     "rules": [
       { "name": "The Rare Metal Rule", "body": "Brass never indicates health and should occupy less than ten percent of a screen. Its rarity makes orientation and selection immediate.", "section": "colors" },
       { "name": "The Dense Instrument Rule", "body": "Supporting type intentionally lives between .56rem and .85rem; essential actions and service names occupy the upper end while tertiary telemetry occupies the lower end.", "section": "typography" },
       { "name": "The Instrument-Only Mono Rule", "body": "Monospace styling belongs to endpoints, timestamps, coordinates, shortcut keys, and logs—never general navigation or decorative labels.", "section": "typography" },
-      { "name": "The Cartographic Layer Rule", "body": "Use tone and seams to explain hierarchy at rest. Shadow means an element has actually lifted above the atlas.", "section": "elevation" }
+      { "name": "The Cartographic Layer Rule", "body": "Use tone and seams to explain hierarchy at rest. Shadow means an element has actually lifted above the atlas.", "section": "elevation" },
+      { "name": "The Workspace Rule", "body": "Navigation is a seam, not a screen change. The shell is the same continuous ruled field; only the active latitude changes.", "section": "operations" },
+      { "name": "The Truthful Instrument Rule", "body": "Hyperion never manufactures a percentage, rate, temperature, or history it did not observe. Missing evidence is written as absent.", "section": "operations" },
+      { "name": "The Consequence Rule", "body": "Operational actions look consequential through exact labels, expected-state checks, and confirmed impact—never through color, glow, or motion. Brass marks intent; operational pigments report the result.", "section": "operations" }
     ],
     "dos": [
       "Do preserve the find, read state, open service sequence; reveal dossiers and logs only on demand.",

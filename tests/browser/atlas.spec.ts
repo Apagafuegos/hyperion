@@ -19,6 +19,7 @@ test("search filters services and restores selection", async ({ page }) => {
   await expect(page.locator(".service-row").filter({ visible: true }).locator(".service-name")).toHaveText("Langfuse");
   await page.locator("#search").fill("zzyzx");
   await expect(page.locator(".service-row").filter({ visible: true })).toHaveCount(0);
+  await expect(page.getByText("No services found")).toBeVisible();
   await page.locator("#search").fill("");
   await expect(page.locator(".service-row").filter({ visible: true })).toHaveCount(10);
 });
@@ -49,6 +50,28 @@ test("logs drawer loads bounded records with controls", async ({ page }) => {
   await expect(page.locator(".log-row").first()).toContainText("GET /api/v3/core/users/");
   await page.locator("#log-source").selectOption("worker");
   await expect(page.locator(".log-row code").first()).toHaveText("worker");
+});
+
+test("logs drawer clips long output to a scrollable panel, not page growth", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('.service-row[data-service-id="authentik"] .service-select').click();
+  await page.locator("#log-drawer summary").click();
+  await expect(page.locator(".log-row").first()).toBeVisible();
+
+  const metrics = await page.locator("#log-rows").evaluate((el) => {
+    const beforeBody = document.body.scrollHeight;
+    const template = el.querySelector(".log-row");
+    for (let i = 0; i < 200; i++) {
+      el.append(template ? template.cloneNode(true) : document.createElement("div"));
+    }
+    return {
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+      bodyGrowth: document.body.scrollHeight - beforeBody,
+    };
+  });
+  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+  expect(metrics.bodyGrowth).toBeLessThan(metrics.scrollHeight);
 });
 
 test("copy action shows toast and writes to clipboard", async ({ page }) => {
@@ -82,6 +105,7 @@ test("mobile: bearings become a strip and dossier stacks", async ({ page }, test
   await expect(page.locator('.dossier[data-dossier-for="langfuse"] h3').first()).toBeVisible();
   const grid = await page.locator(".atlas-frame").evaluate((el) => getComputedStyle(el).gridTemplateColumns);
   expect(grid.split(" ").length).toBe(1);
+  await expect(page.locator('.service-row[data-service-id="langfuse"] .action-icon')).toBeVisible();
 });
 
 test("reduced motion: dossier reveal is effectively instant", async ({ page }, testInfo) => {

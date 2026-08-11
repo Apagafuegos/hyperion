@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
+from pathlib import Path
 
-from ..models import Catalog
+from ..catalog import CatalogError, load_catalog
+from ..models import AtlasSnapshot, Catalog
 from ..providers.base import ProbeObservation, RouteProbeProvider, RuntimeProvider
 from .reconciler import reconcile
 from .snapshots import SnapshotStore
@@ -23,12 +26,20 @@ class RefreshSupervisor:
         probe_provider: RouteProbeProvider,
         catalog: Catalog,
         store: SnapshotStore,
+        base_catalog: Catalog | None = None,
+        catalog_path: Path | None = None,
+        on_catalog: Callable[[Catalog], None] | None = None,
+        on_snapshot: Callable[[AtlasSnapshot], None] | None = None,
         runtime_interval: float = RUNTIME_INTERVAL_SECONDS,
         probe_interval: float = PROBE_INTERVAL_SECONDS,
     ) -> None:
         self._runtime_provider = runtime_provider
         self._probe_provider = probe_provider
         self._catalog = catalog
+        self._base_catalog = base_catalog or catalog
+        self._catalog_path = catalog_path
+        self._on_catalog = on_catalog
+        self._on_snapshot = on_snapshot
         self._store = store
         self._runtime_interval = runtime_interval
         self._probe_interval = probe_interval
@@ -81,14 +92,38 @@ class RefreshSupervisor:
 
     async def _runtime_cycle(self) -> None:
         try:
+            await self._refresh_catalog()
             runtime_observations = await self._runtime_provider.observe(self._catalog)
             probe_observation = self._probe_observation or await self._probe_provider.observe(
                 self._probe_urls(), self._probe_config()
             )
             snapshot = reconcile(self._catalog, runtime_observations, probe_observation)
             self._store.publish(snapshot)
+            if self._on_snapshot is not None:
+                self._on_snapshot(snapshot)
         except Exception as exc:  # provider boundary; keep the last valid snapshot
             logger.error("runtime refresh cycle failed: %s", exc)
+
+    async def _refresh_catalog(self) -> None:
+        """Reload the overlay and merge the current Docker inventory."""
+        if self._catalog_path is not None:
+            try:
+                self._base_catalog = load_catalog(self._catalog_path)
+            except CatalogError as exc:
+                logger.error("catalog reload rejected; keeping last valid catalog: %s", exc)
+
+        discover = getattr(self._runtime_provider, "discover_catalog", None)
+        if discover is None:
+            updated = self._base_catalog
+        else:
+            try:
+                updated = await discover(self._base_catalog)
+            except Exception as exc:
+                logger.error("Docker catalog discovery failed; keeping current catalog: %s", exc)
+                return
+        self._catalog = updated
+        if self._on_catalog is not None:
+            self._on_catalog(updated)
 
     async def _probe_cycle(self) -> None:
         try:

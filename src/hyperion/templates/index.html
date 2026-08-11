@@ -3,42 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hyperion — Service Atlas</title>
+<title>Hyperion — Operations Console</title>
 <meta name="color-scheme" content="light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'">
 <link rel="stylesheet" href="/static/assets/styles.css">
 </head>
-<body>
-<h1 class="visually-hidden">Hyperion — Service Atlas</h1>
+<body data-workspace="{{ workspace }}">
+<h1 class="visually-hidden">Hyperion — Operations Console</h1>
 <header class="global-header">
   <div class="header-inner">
-    <a class="brand" href="/" aria-label="Hyperion home">
+    <a class="brand" href="/overview" aria-label="Hyperion home">
       <span class="brand-mark" aria-hidden="true"></span>
       <strong class="brand-title">Hyperion</strong>
     </a>
     <label class="global-search">
       <span class="search-icon" aria-hidden="true"></span>
-      <input id="search" type="search" placeholder="Find services, endpoints…" autocomplete="off" aria-label="Search services">
+      <input id="search" type="search" placeholder="{{ search_placeholder }}" autocomplete="off" aria-label="Search">
       <kbd class="search-key">⌘ K</kbd>
     </label>
-    <nav class="global-nav" aria-label="Territories">
-      <a class="nav-destination" href="#applications" data-territory-link="applications">Applications</a>
-      <a class="nav-destination" href="#services" data-territory-link="services">Services</a>
-      <a class="nav-destination" href="#foundations" data-territory-link="foundations">Foundations</a>
+    <nav class="global-nav" aria-label="Workspaces">
+      <a class="nav-destination{% if workspace == 'overview' %} active{% endif %}" href="/overview">Overview</a>
+      <a class="nav-destination{% if workspace == 'atlas' %} active{% endif %}" href="/atlas">Atlas</a>
+      <a class="nav-destination{% if workspace == 'schedules' %} active{% endif %}" href="/schedules">Schedules</a>
+      <a class="nav-destination{% if workspace == 'units' %} active{% endif %}" href="/units">Units</a>
+      <a class="nav-destination{% if workspace == 'activity' %} active{% endif %}" href="/activity">Activity</a>
     </nav>
   </div>
 </header>
 
+{% if workspace == 'atlas' %}
 <main class="atlas-main">
   <p class="workspace-statement">Everything deployed, mapped to one calm surface.</p>
 
   <section class="atlas-frame" aria-label="Service atlas">
+    <div class="latitudes" id="latitudes" aria-live="polite">
+      <div class="atlas-message atlas-loading" role="status">
+        <span class="loading-bearing" aria-hidden="true"></span>
+        <span>
+          <strong>Mapping deployed services…</strong>
+          <small>Reading the catalog and live routes.</small>
+        </span>
+      </div>
+    </div>
     <aside class="bearings-rail" aria-label="Fleet bearings">
       <div id="bearings"></div>
       <p class="bearings-note">Service states, not containers.</p>
       <div id="diagnostics-keycap" class="diagnostics-keycap" hidden></div>
     </aside>
-    <div class="latitudes" id="latitudes" aria-live="polite"></div>
   </section>
 
   <details class="log-drawer" id="log-drawer">
@@ -67,14 +78,40 @@
 
   <div id="toast" class="toast" role="status" hidden></div>
 </main>
+{% else %}
+<main class="atlas-main">
+  <p class="workspace-statement">{{ workspace_statement }}</p>
+  <section class="workspace-frame" id="workspace" aria-live="polite">
+    <div class="atlas-message atlas-loading" role="status">
+      <span class="loading-bearing" aria-hidden="true"></span>
+      <span>
+        <strong>Loading {{ workspace }}…</strong>
+        <small>Reading live evidence.</small>
+      </span>
+    </div>
+  </section>
+</main>
+{% endif %}
+
+<div id="confirmation" class="confirmation" role="dialog" aria-modal="true" aria-labelledby="confirmation-title" hidden>
+  <div class="confirmation-panel">
+    <h2 id="confirmation-title">Confirm operation</h2>
+    <p class="confirmation-impact" id="confirmation-impact"></p>
+    <p class="confirmation-state" id="confirmation-state"></p>
+    <div class="confirmation-actions">
+      <button type="button" class="button-route" id="confirmation-cancel">Cancel</button>
+      <button type="button" class="button-primary" id="confirmation-confirm">Confirm</button>
+    </div>
+  </div>
+</div>
 
 <noscript>
   <section class="noscript-note">
-    Hyperion requires JavaScript to render the live atlas. The read-only API
+    Hyperion requires JavaScript to render the live console. The read-only API
     remains available at <code>/api/v1/snapshot</code> with the Authentik identity header.
   </section>
 </noscript>
 
-<script type="module" src="/static/assets/atlas.js"></script>
+<script type="module" src="/static/assets/app.js"></script>
 </body>
 </html>

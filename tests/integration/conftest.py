@@ -14,7 +14,7 @@ FIXTURES = Path(__file__).parents[1] / "fixtures"
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(tmp_path) -> TestClient:
     settings = Settings.from_env()
     app = create_app(
         settings=Settings(
@@ -24,6 +24,8 @@ def client() -> TestClient:
             bind_port=settings.bind_port,
             log_level=settings.log_level,
             fixture_mode=True,
+            state_dir=tmp_path / "state",
+            managed_unit_dir=tmp_path / "systemd",
         )
     )
     with TestClient(app) as client:

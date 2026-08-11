@@ -11,7 +11,15 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..models import Catalog
+from ..models import (
+    Catalog,
+    HostEvidence,
+    LogRecord,
+    ScheduleInventoryResponse,
+    ScheduleSnapshot,
+    UnitInventoryResponse,
+    UnitSnapshot,
+)
 from .base import (
     LogBinding,
     LogRecordIn,
@@ -27,6 +35,9 @@ class FixtureRuntimeProvider:
     def __init__(self, evidence_path: Path, logs_path: Path) -> None:
         self._evidence: dict[str, Any] = json.loads(evidence_path.read_text(encoding="utf-8"))
         self._logs: dict[str, Any] = json.loads(logs_path.read_text(encoding="utf-8"))
+
+    async def discover_catalog(self, base: Catalog) -> Catalog:
+        return base
 
     async def observe(self, catalog: Catalog) -> list[ProviderObservation]:
         now = datetime.now(UTC)
@@ -91,3 +102,80 @@ class FixtureProbeProvider:
         return ProbeObservation(
             provider="probe", state="available", observed_at=now, results=results
         )
+
+
+class FixtureHostProvider:
+    """Serves canned host evidence; rates are static per fixture."""
+
+    def __init__(self, host_path: Path) -> None:
+        self._raw: dict[str, Any] = json.loads(host_path.read_text(encoding="utf-8"))
+
+    async def observe(self) -> HostEvidence:
+        now = datetime.now(UTC)
+        evidence = HostEvidence.model_validate(self._raw["host"])
+        evidence.observed_at = now
+        evidence.fresh = True
+        return evidence
+
+
+class FixtureUnitProvider:
+    """Serves canned systemd unit inventory."""
+
+    def __init__(self, units_path: Path, logs_path: Path) -> None:
+        self._raw: dict[str, Any] = json.loads(units_path.read_text(encoding="utf-8"))
+        self._logs: dict[str, Any] = json.loads(logs_path.read_text(encoding="utf-8"))
+        self._unit_log_keys: dict[str, str] = {}
+        for item in self._raw["units"]:
+            unit_name = item.get("name")
+            related = item.get("relatedService")
+            if isinstance(unit_name, str) and isinstance(related, str):
+                self._unit_log_keys[unit_name] = related
+
+    async def inventory(self, related: dict[str, str] | None = None) -> UnitInventoryResponse:
+        now = datetime.now(UTC)
+        units = [UnitSnapshot.model_validate(item) for item in self._raw["units"]]
+        if related:
+            for unit in units:
+                unit.related_service = related.get(unit.name, unit.related_service)
+                if unit.name in related:
+                    unit.curated = True
+                    if unit.related_service is not None:
+                        self._unit_log_keys[unit.name] = unit.related_service
+        counts: dict[str, int] = {}
+        for unit in units:
+            counts[unit.active_state] = counts.get(unit.active_state, 0) + 1
+        return UnitInventoryResponse(generated_at=now, fresh=True, counts=counts, units=units)
+
+    async def read_logs(self, unit: str, tail: int = 100) -> list[dict[str, object]]:
+        now = datetime.now(UTC)
+        log_key = self._unit_log_keys.get(unit, unit)
+        records = [
+            LogRecord(
+                timestamp=now - timedelta(seconds=entry["offsetSeconds"]),
+                source=entry["source"],
+                provider="journald",
+                stream="journal",
+                severity=entry["severity"],
+                message=entry["message"],
+                truncated=False,
+            )
+            for entry in self._logs.get(log_key, [])
+        ]
+        records.sort(key=lambda record: record.timestamp or datetime.min)
+        return [record.model_dump(mode="json", by_alias=True) for record in records[-tail:]]
+
+
+class FixtureScheduleProvider:
+    """Serves canned schedule inventory with times relative to now."""
+
+    def __init__(self, schedules_path: Path) -> None:
+        self._raw: dict[str, Any] = json.loads(schedules_path.read_text(encoding="utf-8"))
+
+    async def inventory(self) -> ScheduleInventoryResponse:
+        now = datetime.now(UTC)
+        schedules = [ScheduleSnapshot.model_validate(item) for item in self._raw["schedules"]]
+        for index, schedule in enumerate(schedules):
+            schedule.next_run = now + timedelta(minutes=(index + 1) * 45)
+            if schedule.last_run is not None:
+                schedule.last_run = now - timedelta(hours=(index + 1) * 12)
+        return ScheduleInventoryResponse(generated_at=now, fresh=True, schedules=schedules)

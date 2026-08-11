@@ -26,19 +26,20 @@ class LogGateway:
     def __init__(
         self,
         runtime_provider: RuntimeProvider,
-        catalog: Catalog,
+        catalog: Catalog | Callable[[], Catalog],
         timeout: float = 5.0,
         resolve_references: Callable[[], dict[tuple[str, str], str]] | None = None,
     ) -> None:
         self._provider = runtime_provider
-        self._catalog = catalog
+        self._resolve_catalog = catalog if callable(catalog) else lambda: catalog
         self._timeout = timeout
         self._resolve_references = resolve_references or (lambda: {})
 
     async def read(
         self, service_id: str, source: str | None, tail: int, before: datetime | None
     ) -> LogsResponse:
-        service = next((s for s in self._catalog.services if s.service_id == service_id), None)
+        catalog = self._resolve_catalog()
+        service = next((s for s in catalog.services if s.service_id == service_id), None)
         if service is None:
             raise ApiError(404, "SERVICE_NOT_FOUND", "No such service in the catalog.", False)
         requested = [source] if source is not None else list(service.logs.sources)

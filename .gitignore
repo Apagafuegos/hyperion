@@ -19,6 +19,7 @@ src/hyperion/static/assets/
 test-results/
 playwright-report/
 coverage/
+.playwright-state/
 
 # Editor/OS
 .vscode/
