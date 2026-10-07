@@ -50,9 +50,7 @@ async def test_ops_socket_refuses_mismatched_caller(tmp_path: Path) -> None:
 
 async def test_ops_socket_reaches_policy_for_matching_caller(tmp_path: Path) -> None:
     sock = tmp_path / "ops.sock"
-    task = await _start_server(
-        sock, allowed_units={"t3code.service"}, caller_uid=os.getuid()
-    )
+    task = await _start_server(sock, allowed_units={"t3code.service"}, caller_uid=os.getuid())
     try:
         client = OperationHelperClient(sock)
         result = await client.request("other.service", "restart")
@@ -88,7 +86,7 @@ async def test_ops_socket_write_unit_writes_into_managed_dir(tmp_path: Path) -> 
     sock = tmp_path / "ops.sock"
     task = await _start_server(sock, caller_uid=os.getuid(), managed_dir=managed)
     content = (
-        "[Unit]\nDescription=Demo\n\n[Service]\nType=oneshot\n"
+        "[Unit]\nDescription=Demo\n\n[Service]\nType=oneshot\nUser=hyperion-jobs\n"
         "ExecStart=/usr/local/bin/demo --force\n"
     )
     try:
@@ -97,7 +95,9 @@ async def test_ops_socket_write_unit_writes_into_managed_dir(tmp_path: Path) -> 
     finally:
         await _stop_server(task)
     assert result["ok"] is True
-    assert (managed / "hyperion-demo.service").read_text(encoding="utf-8") == content
+    written = (managed / "hyperion-demo.service").read_text(encoding="utf-8")
+    assert written.startswith(content)
+    assert "NoNewPrivileges=yes" in written
 
 
 async def test_ops_socket_write_unit_rejects_foreign_unit(tmp_path: Path) -> None:
@@ -191,9 +191,7 @@ def test_execute_operation_enable_now_argv() -> None:
         calls.append(argv)
         return 0, b"", b""
 
-    result = asyncio.run(
-        execute_operation("hyperion-demo.timer", "enable-now", executor=runner)
-    )
+    result = asyncio.run(execute_operation("hyperion-demo.timer", "enable-now", executor=runner))
     assert result["ok"] is True
     assert calls == [["systemctl", "enable", "--now", "hyperion-demo.timer"]]
 

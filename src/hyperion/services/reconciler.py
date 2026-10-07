@@ -150,6 +150,7 @@ def _build_service(
                     health="unknown",
                     observed_at=provider_observed_at[provider_name] or now,
                     image=None,
+                    deployment=None,
                     uptime_seconds=None,
                     restart_count=None,
                     cpu_percent=None,
@@ -169,6 +170,7 @@ def _build_service(
                 health=component_evidence.health,
                 observed_at=component_evidence.observed_at,
                 image=component_evidence.image,
+                deployment=component_evidence.deployment,
                 uptime_seconds=component_evidence.uptime_seconds,
                 restart_count=component_evidence.restart_count,
                 cpu_percent=component_evidence.cpu_percent,
@@ -217,20 +219,18 @@ def _build_service(
         components=components,
         dependencies=[],
         log_sources=log_sources,
+        diagnostic_endpoints=service.diagnostics,
     )
 
 
-def _link_dependencies(
-    services: list[ServiceSnapshot], declared: dict[str, list[str]]
-) -> None:
+def _link_dependencies(services: list[ServiceSnapshot], declared: dict[str, list[str]]) -> None:
     by_id = {service.id: service for service in services}
     for service in services:
         dependencies = declared.get(service.id, [])
         if not dependencies:
             continue
         service.dependencies = [
-            DependencySnapshot(service_id=dep, state=by_id[dep].state)
-            for dep in dependencies
+            DependencySnapshot(service_id=dep, state=by_id[dep].state) for dep in dependencies
         ]
 
 
@@ -344,9 +344,7 @@ def _diagnostics(
                 )
             )
         warnings.extend(_sanitize(c) or "" for c in observation.conflicts)
-    return Diagnostics(
-        unmapped_runtimes=unmapped, warnings=[w for w in warnings if w][:20]
-    )
+    return Diagnostics(unmapped_runtimes=unmapped, warnings=[w for w in warnings if w][:20])
 
 
 def _required_providers(catalog: Catalog) -> set[str]:

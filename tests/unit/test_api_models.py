@@ -60,8 +60,21 @@ def test_snapshot_uses_camel_case_aliases() -> None:
     service = make_service()
     payload = service.model_dump(by_alias=True)
     assert set(payload) == {
-        "id", "name", "description", "territory", "kind", "intent", "action", "state",
-        "stateReasons", "observedAt", "route", "components", "dependencies", "logSources",
+        "id",
+        "name",
+        "description",
+        "territory",
+        "kind",
+        "intent",
+        "action",
+        "state",
+        "stateReasons",
+        "observedAt",
+        "route",
+        "components",
+        "dependencies",
+        "logSources",
+        "diagnosticEndpoints",
     }
     component = payload["components"][0]
     assert component["uptimeSeconds"] == 86400
@@ -96,8 +109,10 @@ def test_full_atlas_snapshot_round_trip() -> None:
         fresh=True,
         providers=[
             ProviderStatus(
-                provider="docker", state="available",
-                observed_at=datetime(2026, 8, 4, 6, 0, 0, tzinfo=UTC), message=None,
+                provider="docker",
+                state="available",
+                observed_at=datetime(2026, 8, 4, 6, 0, 0, tzinfo=UTC),
+                message=None,
             )
         ],
         summary=StateSummary(total=10, reachable=4, degraded=2, down=2, dormant=1, unknown=1),

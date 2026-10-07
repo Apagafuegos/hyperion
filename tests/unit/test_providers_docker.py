@@ -91,25 +91,48 @@ class FakeContainer:
 def default_containers() -> list[FakeContainer]:
     return [
         FakeContainer(
-            "c1", "authentik-server-1", labels("authentik", "server"),
-            "running", health="healthy", image="img:1", started="2026-08-03T06:00:00Z",
-            restart_count=0, stats_result=STATS,
+            "c1",
+            "authentik-server-1",
+            labels("authentik", "server"),
+            "running",
+            health="healthy",
+            image="img:1",
+            started="2026-08-03T06:00:00Z",
+            restart_count=0,
+            stats_result=STATS,
         ),
         FakeContainer(
-            "c2", "authentik-worker-1", labels("authentik", "worker"),
-            "running", health="starting", image="img:1", stats_result=STATS,
+            "c2",
+            "authentik-worker-1",
+            labels("authentik", "worker"),
+            "running",
+            health="starting",
+            image="img:1",
+            stats_result=STATS,
         ),
         FakeContainer(
-            "c3", "langfuse-langfuse-1", labels("langfuse", "langfuse"),
-            "exited", image="img:2", restart_count=4,
+            "c3",
+            "langfuse-langfuse-1",
+            labels("langfuse", "langfuse"),
+            "exited",
+            image="img:2",
+            restart_count=4,
         ),
         FakeContainer(
-            "c4", "rarecord-app-1", labels("rarecord", "app"),
-            "running", health="unhealthy", image="img:3", stats_result=STATS,
+            "c4",
+            "rarecord-app-1",
+            labels("rarecord", "app"),
+            "running",
+            health="unhealthy",
+            image="img:3",
+            stats_result=STATS,
         ),
         FakeContainer(
-            "c5", "caddy-1", labels("caddy", "caddy"),
-            "running", image="caddy:2",
+            "c5",
+            "caddy-1",
+            labels("caddy", "caddy"),
+            "running",
+            image="caddy:2",
         ),
     ]
 
@@ -160,7 +183,18 @@ def run(coro):
 
 def test_observe_maps_evidence() -> None:
     catalog = load_catalog(FIXTURES / "fixture-services.yaml")
-    factory, _ = make_client()
+    containers = default_containers()
+    containers[0].attrs["Config"]["Labels"].update(
+        {
+            "hyperion.deployment.id": "deploy-42",
+            "org.opencontainers.image.revision": "a" * 40,
+            "hyperion.deployment.started_at": "2026-08-04T05:55:00Z",
+            "hyperion.deployment.completed_at": "2026-08-04T05:57:00Z",
+            "hyperion.deployment.status": "succeeded",
+            "hyperion.environment": "production",
+        }
+    )
+    factory, _ = make_client(containers)
     provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
     observation = run(provider.observe(catalog))
     assert observation.state == "available"
@@ -169,6 +203,10 @@ def test_observe_maps_evidence() -> None:
     assert server.state == "running"
     assert server.health == "healthy"
     assert server.reference == "authentik-server-1"
+    assert server.deployment is not None
+    assert server.deployment.deployment_id == "deploy-42"
+    assert server.deployment.commit_sha == "a" * 40
+    assert server.deployment.environment == "production"
     worker = by_key[("authentik", "worker")]
     assert worker.state == "starting"  # running + health starting -> Starting
     assert worker.health == "starting"
@@ -207,8 +245,9 @@ def test_state_map_covers_created_paused_dead_removing() -> None:
 def test_health_unparseable_maps_unknown() -> None:
     catalog = load_catalog(FIXTURES / "fixture-services.yaml")
     containers = [
-        FakeContainer("h1", "authentik-server-1", labels("authentik", "server"),
-                      "running", health="weird"),
+        FakeContainer(
+            "h1", "authentik-server-1", labels("authentik", "server"), "running", health="weird"
+        ),
     ]
     factory, _ = make_client(containers)
     provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
@@ -221,8 +260,9 @@ def test_health_unparseable_maps_unknown() -> None:
 def test_stats_first_sample_has_no_cpu() -> None:
     catalog = load_catalog(FIXTURES / "fixture-services.yaml")
     containers = [
-        FakeContainer("f1", "rarecord-app-1", labels("rarecord", "app"),
-                      "running", stats_result=FIRST_SAMPLE),
+        FakeContainer(
+            "f1", "rarecord-app-1", labels("rarecord", "app"), "running", stats_result=FIRST_SAMPLE
+        ),
     ]
     factory, _ = make_client(containers)
     provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
@@ -234,8 +274,9 @@ def test_stats_first_sample_has_no_cpu() -> None:
 
 def test_read_logs_tty_uses_unknown_stream() -> None:
     containers = [
-        FakeContainer("t1", "authentik-server-1", labels("authentik", "server"),
-                      "running", tty=True),
+        FakeContainer(
+            "t1", "authentik-server-1", labels("authentik", "server"), "running", tty=True
+        ),
     ]
     factory, _ = make_client(containers)
     provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)
@@ -403,14 +444,22 @@ def test_stats_collected_concurrently() -> None:
             return super().stats(stream=stream)
 
     containers = [
-        SlowContainer("s1", "authentik-server-1", labels("authentik", "server"), "running",
-                      stats_result=STATS),
-        SlowContainer("s2", "authentik-worker-1", labels("authentik", "worker"), "running",
-                      stats_result=STATS),
-        SlowContainer("s3", "authentik-postgresql-1", labels("authentik", "postgresql"), "running",
-                      stats_result=STATS),
-        SlowContainer("s4", "rarecord-app-1", labels("rarecord", "app"), "running",
-                      stats_result=STATS),
+        SlowContainer(
+            "s1", "authentik-server-1", labels("authentik", "server"), "running", stats_result=STATS
+        ),
+        SlowContainer(
+            "s2", "authentik-worker-1", labels("authentik", "worker"), "running", stats_result=STATS
+        ),
+        SlowContainer(
+            "s3",
+            "authentik-postgresql-1",
+            labels("authentik", "postgresql"),
+            "running",
+            stats_result=STATS,
+        ),
+        SlowContainer(
+            "s4", "rarecord-app-1", labels("rarecord", "app"), "running", stats_result=STATS
+        ),
     ]
     factory, _ = make_client(containers)
     provider = DockerProvider(host="tcp://fake:2375", client_factory=factory)

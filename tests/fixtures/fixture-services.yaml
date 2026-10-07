@@ -20,6 +20,13 @@ services:
       url: https://t3.carlos-santos.es
     logs:
       sources: [t3code.service]
+    diagnostics:
+      endpoints:
+        primary:
+          namespace: host
+          protocol: tcp
+          address: 127.0.0.1
+          port: 3773
 
   - id: authentik
     name: Authentik

@@ -13,6 +13,11 @@ from hyperion.settings import Settings
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def proxy_proof(monkeypatch):
+    monkeypatch.setenv("MANAGEMENT_PROXY_SECRET", "hyperion-test-proxy-proof")
+
+
 @pytest.fixture
 def client(tmp_path) -> TestClient:
     settings = Settings.from_env()
@@ -28,5 +33,11 @@ def client(tmp_path) -> TestClient:
             managed_unit_dir=tmp_path / "systemd",
         )
     )
-    with TestClient(app) as client:
+    with TestClient(
+        app,
+        headers={
+            "X-Management-Proxy-Secret": "hyperion-test-proxy-proof",
+            "X-Authentik-Groups": "authentik Admins",
+        },
+    ) as client:
         yield client

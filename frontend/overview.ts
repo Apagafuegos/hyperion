@@ -1,34 +1,30 @@
-// Overview workspace: host condition, attention, upcoming schedules,
-// service-state bearings, and recent activity in one continuous ruled field.
-
+// Overview publishes each evidence source independently, keeping slow inventory
+// reads from blocking the host and service snapshot or replacing focused links.
 import {
-  fetchActivity,
-  fetchHost,
-  fetchSchedules,
-  fetchSnapshot,
-  type ActivityRecord,
-  type HostEvidence,
-  type ScheduleSnapshot,
-  type Snapshot,
+  fetchActivity, fetchHost, fetchSchedules, fetchSnapshot,
+  type ActivityRecord, type HostEvidence, type ScheduleSnapshot, type Snapshot,
 } from "./api";
-import { formatBytes, formatObserved, formatUptime, stateLabel } from "./shell";
+import { matchesQuery } from "./logic";
+import { formatBytes, formatObserved, formatUptime, stateLabel, statusChip } from "./shell";
 
 const POLL_INTERVAL_MS = 15_000;
-
-const workspace = () => {
-  const element = document.querySelector<HTMLElement>("#workspace");
-  if (element === null) throw new Error("missing #workspace");
-  return element;
-};
-
 let host: HostEvidence | null = null;
 let snapshot: Snapshot | null = null;
-let schedules: ScheduleSnapshot[] = [];
-let activity: ActivityRecord[] = [];
+let schedules: ScheduleSnapshot[] | null = null;
+let activity: ActivityRecord[] | null = null;
+let query = "";
+let refreshing = false;
+const regions = new Map<string, HTMLElement>();
+const pending = new Set(["host", "services", "schedules", "activity"]);
+const failed = new Set<string>();
+
+function publish(name: string, content: HTMLElement): void {
+  regions.get(name)?.replaceChildren(content);
+}
 
 function section(title: string, coords: string): HTMLElement {
-  const section = document.createElement("section");
-  section.className = "band";
+  const band = document.createElement("section");
+  band.className = "band";
   const header = document.createElement("header");
   header.className = "band-heading";
   const h2 = document.createElement("h2");
@@ -37,357 +33,280 @@ function section(title: string, coords: string): HTMLElement {
   span.className = "band-coords";
   span.textContent = coords;
   header.append(h2, span);
-  section.append(header);
-  return section;
-}
-
-function instrument(
-  title: string,
-  value: string,
-  unit: string,
-  support: string,
-  state: string,
-  trace: number[] = [],
-): HTMLElement {
-  const instrument = document.createElement("div");
-  instrument.className = "instrument";
-  const header = document.createElement("div");
-  header.className = "instrument-header";
-  const titleEl = document.createElement("span");
-  titleEl.className = "instrument-title";
-  titleEl.textContent = title;
-  const stateEl = document.createElement("span");
-  stateEl.className = `instrument-state state-${state}`;
-  stateEl.textContent = state === "fresh" ? "Fresh" : state === "stale" ? "Stale" : "Unavailable";
-  header.append(titleEl, stateEl);
-  const valueEl = document.createElement("div");
-  valueEl.className = "instrument-value";
-  valueEl.textContent = value;
-  const unitEl = document.createElement("span");
-  unitEl.className = "instrument-unit";
-  unitEl.textContent = unit;
-  valueEl.append(unitEl);
-  const supportEl = document.createElement("div");
-  supportEl.className = "instrument-support";
-  supportEl.textContent = support;
-  instrument.append(header, valueEl, supportEl);
-  if (trace.length > 1) {
-    instrument.append(sparkline(trace));
-  }
-  return instrument;
-}
-
-function sparkline(values: number[]): HTMLElement {
-  const container = document.createElement("div");
-  container.className = "instrument-trace";
-  container.setAttribute("aria-hidden", "true");
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 120 26");
-  svg.setAttribute("preserveAspectRatio", "none");
-  const max = Math.max(...values, 1);
-  const points = values
-    .map((v, i) => `${(i / (values.length - 1)) * 120},${26 - (v / max) * 22 - 2}`)
-    .join(" ");
-  const polyline = document.createElementNS(ns, "polyline");
-  polyline.setAttribute("points", points);
-  svg.append(polyline);
-  container.append(svg);
-  return container;
-}
-
-function attentionBand(records: ActivityRecord[]): HTMLElement {
-  const band = document.createElement("div");
-  band.className = "attention-band";
-  const heading = document.createElement("h2");
-  heading.textContent = "Needs attention";
-  band.append(heading);
-  const attention = records.filter((r) => r.result === "failure" || r.result === "warning");
-  if (attention.length === 0) {
-    const quiet = document.createElement("p");
-    quiet.className = "attention-empty";
-    quiet.textContent = "Nothing needs attention.";
-    band.append(quiet);
-    return band;
-  }
-  for (const record of attention.slice(0, 5)) {
-    const row = document.createElement("div");
-    row.className = "attention-row";
-    const dot = document.createElement("span");
-    dot.className = `route-dot dot-${record.result === "failure" ? "down" : "degraded"}`;
-    const target = document.createElement("a");
-    target.className = "attention-target";
-    target.textContent = record.target;
-    target.href = recordTargetHref(record);
-    const note = document.createElement("span");
-    note.className = "attention-note";
-    note.textContent = record.message;
-    const time = document.createElement("time");
-    time.className = "attention-time";
-    time.textContent = formatObserved(record.occurredAt);
-    row.append(dot, target, note, time);
-    band.append(row);
-  }
+  band.append(header);
   return band;
 }
 
-function recordTargetHref(record: ActivityRecord): string {
-  switch (record.targetType) {
-    case "unit": return `/units#unit=${encodeURIComponent(record.target)}`;
-    case "service": return `/atlas#service=${encodeURIComponent(record.target)}`;
-    case "schedule": return `/schedules#schedule=${encodeURIComponent(record.target)}`;
-    default: return "/activity";
-  }
+function note(text: string): HTMLElement {
+  const p = document.createElement("p");
+  p.className = "band-empty";
+  p.textContent = text;
+  return p;
+}
+
+function freshness(name: string, fresh: boolean): string {
+  return failed.has(name) || !fresh ? "stale" : "fresh";
+}
+
+function instrument(title: string, value: string, unit: string, support: string, state: string): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "instrument";
+  const header = document.createElement("div");
+  header.className = "instrument-header";
+  const label = document.createElement("span");
+  label.className = "instrument-title";
+  label.textContent = title;
+  const status = document.createElement("span");
+  status.className = `instrument-state state-${state}`;
+  status.textContent = stateLabel(state);
+  header.append(label, status);
+  const reading = document.createElement("div");
+  reading.className = "instrument-value";
+  reading.textContent = value;
+  const suffix = document.createElement("span");
+  suffix.className = "instrument-unit";
+  suffix.textContent = unit;
+  reading.append(suffix);
+  const detail = document.createElement("div");
+  detail.className = "instrument-support";
+  detail.textContent = support;
+  el.append(header, reading, detail);
+  return el;
+}
+
+function numeric(value: number | null | undefined): string {
+  return value == null ? "—" : value.toFixed(1).replace(/\.0$/, "");
+}
+
+function rate(value: number | null | undefined): string {
+  return value == null ? "—" : formatBytes(value);
 }
 
 function renderHost(): void {
-  const hostSection = section("Host condition", "HOST LAT");
+  const identity = document.createElement("div");
+  identity.className = "overview-identity";
+  const name = document.createElement("strong");
+  name.textContent = host?.hostname ?? (pending.has("host") ? "Reading host…" : "Host unavailable");
+  const detail = document.createElement("span");
+  if (host !== null) {
+    detail.textContent = `up ${formatUptime(host.uptimeSeconds)} · observed ${formatObserved(host.observedAt)} · ${stateLabel(freshness("host", host.fresh))}`;
+  } else {
+    detail.textContent = "Waiting for host evidence.";
+  }
+  identity.append(name, detail);
+  publish("identity", identity);
+
+  const band = section("Host condition", "HOST LAT");
   const field = document.createElement("div");
   field.className = "instrument-field";
-  hostSection.append(field);
-  const stale = host === null || !host.fresh;
-  const state = stale ? "stale" : "fresh";
-
-  const cpuValue = host?.cpu.utilizationPercent;
+  const available = host !== null && host.providerState !== "unavailable";
+  const state = available ? freshness("host", host!.fresh) : pending.has("host") ? "pending" : "unavailable";
+  const cpu = host?.cpu.utilizationPercent;
+  const memory = host?.memory.usedPercent;
+  // Show the filesystem closest to capacity, rather than concealing a full
+  // Docker volume behind a healthy root filesystem.
+  const filesystem = host?.filesystems.filter(fs => fs.usedPercent !== null)
+    .sort((a, b) => (b.usedPercent ?? 0) - (a.usedPercent ?? 0))[0];
+  const network = host?.interfaces.find(i => i.name === "eth0") ?? host?.interfaces.find(i => i.name !== "lo");
   field.append(
-    instrument(
-      "CPU",
-      cpuValue === null ? "—" : String(cpuValue),
-      cpuValue === null ? "" : "%",
-      `load ${formatLoad(host?.cpu.loadAverage1m)} / ${formatLoad(host?.cpu.loadAverage5m)} / ${formatLoad(host?.cpu.loadAverage15m)}`,
-      state,
-      historyTrace("cpu"),
-    ),
+    instrument("CPU", numeric(cpu), cpu == null ? "" : "%", `load ${numeric(host?.cpu.loadAverage1m)} / ${numeric(host?.cpu.loadAverage5m)} / ${numeric(host?.cpu.loadAverage15m)}`, cpu == null && available ? "unavailable" : state),
+    instrument("Memory", numeric(memory), memory == null ? "" : "%", `${formatBytes(host?.memory.usedBytes ?? null)} of ${formatBytes(host?.memory.totalBytes ?? null)} · swap ${numeric(host?.memory.swapUsedPercent)}%`, memory == null && available ? "unavailable" : state),
+    instrument("Storage", numeric(filesystem?.usedPercent), filesystem?.usedPercent == null ? "" : "%", filesystem === undefined ? "No filesystems observed." : `${filesystem.mountPoint} · ${formatBytes(filesystem.freeBytes)} free · ${numeric(filesystem.inodeUsedPercent)}% inodes`, filesystem === undefined && available ? "unavailable" : state),
+    instrument("Network", rate(network?.rxBytesPerSecond), network?.rxBytesPerSecond == null ? "" : "/s in", network === undefined ? "No interfaces observed." : `${network.name} · out ${rate(network.txBytesPerSecond)}/s`, network?.rxBytesPerSecond == null && available ? "unavailable" : state),
   );
-  field.append(
-    instrument(
-      "Memory",
-      host?.memory.usedPercent === null || host?.memory.usedPercent === undefined ? "—" : String(host.memory.usedPercent),
-      host?.memory.usedPercent === null || host?.memory.usedPercent === undefined ? "" : "%",
-      `${formatBytes(host?.memory.usedBytes ?? null)} of ${formatBytes(host?.memory.totalBytes ?? null)} · swap ${formatPercent(host?.memory.swapUsedPercent)}`,
-      state,
-      [],
-    ),
-  );
-  field.append(
-    instrument(
-      "Storage",
-      storageValue(host),
-      "%",
-      storageSupport(host),
-      state,
-      [],
-    ),
-  );
-  field.append(
-    instrument(
-      "Network",
-      networkValue(host),
-      networkUnit(host),
-      networkSupport(host),
-      state,
-      [],
-    ),
-  );
-  workspace().append(hostSection);
+  band.append(field);
+  publish("host", band);
 }
 
-function formatLoad(value: number | null | undefined): string {
-  return value === null || value === undefined ? "—" : value.toFixed(2);
+function renderAttention(): void {
+  const band = document.createElement("section");
+  band.className = "attention-band";
+  const title = document.createElement("h2");
+  title.textContent = "Needs attention";
+  band.append(title);
+  let count = 0;
+  let critical = false;
+  const add = (target: string, message: string, state: string, href: string, observedAt: string) => {
+    if (![target, message].some(text => text.toLowerCase().includes(query))) return;
+    const row = document.createElement("a");
+    row.className = "attention-row";
+    row.href = href;
+    const dot = document.createElement("span");
+    dot.className = `route-dot dot-${state}`;
+    dot.setAttribute("aria-hidden", "true");
+    const name = document.createElement("strong");
+    name.className = "attention-target";
+    name.textContent = target;
+    const note = document.createElement("span");
+    note.className = "attention-note";
+    note.textContent = message;
+    const time = document.createElement("time");
+    time.className = "attention-time";
+    time.dateTime = observedAt;
+    time.textContent = formatObserved(observedAt);
+    row.append(dot, name, statusChip(state), note, time);
+    band.append(row);
+    count++;
+    critical ||= state === "down";
+  };
+  const services = snapshot?.services.filter(s => s.state === "down" || s.state === "degraded" || s.state === "unknown") ?? [];
+  services.sort((a, b) => Number(b.state === "down") - Number(a.state === "down"));
+  for (const service of services) {
+    const reason = service.stateReasons.find(r => r.severity === "critical") ?? service.stateReasons[0];
+    add(service.name, reason?.message ?? "Service state could not be established.", service.state,
+      `/atlas#service=${encodeURIComponent(service.id)}`, service.observedAt);
+  }
+  for (const fs of host?.filesystems ?? []) {
+    if (fs.usedPercent !== null && fs.usedPercent >= 85) {
+      add(fs.mountPoint, `Storage is ${numeric(fs.usedPercent)}% full · ${formatBytes(fs.freeBytes)} free.`, "degraded", "#host-condition", host!.observedAt);
+    }
+  }
+  if (count > 0 && !critical) band.classList.add("attention-caution");
+  if (count === 0) {
+    band.classList.add("attention-quiet");
+    const empty = note(query !== "" ? "No attention items match your search." : pending.has("services") || pending.has("host") ? "Checking current evidence…" : snapshot === null || host === null ? "Current attention is unavailable." : "Nothing needs attention.");
+    empty.className = "attention-empty";
+    band.append(empty);
+  }
+  if (failed.has("services") || failed.has("host") || snapshot?.fresh === false || host?.fresh === false) {
+    band.append(note("Some evidence is stale or unavailable. Retrying automatically."));
+  }
+  publish("attention", band);
 }
 
-function formatPercent(value: number | null | undefined): string {
-  return value === null || value === undefined ? "—" : `${value}%`;
-}
-
-function storageValue(host: HostEvidence | null): string {
-  if (host === null) return "—";
-  const filesystem = host.filesystems.find((fs) => fs.mountPoint === "/") ?? host.filesystems[0];
-  return filesystem?.usedPercent === null || filesystem?.usedPercent === undefined ? "—" : String(filesystem.usedPercent);
-}
-
-function storageSupport(host: HostEvidence | null): string {
-  if (host === null) return "—";
-  const filesystem = host.filesystems.find((fs) => fs.mountPoint === "/") ?? host.filesystems[0];
-  if (filesystem === undefined) return "no filesystems observed";
-  return `${filesystem.mountPoint} · ${formatBytes(filesystem.freeBytes ?? null)} free · ${formatPercent(filesystem.inodeUsedPercent)} inodes`;
-}
-
-function networkValue(host: HostEvidence | null): string {
-  if (host === null) return "—";
-  const interface_ = host.interfaces.find((i) => i.name === "eth0") ?? host.interfaces[0];
-  if (interface_ === undefined) return "—";
-  const value = interface_.rxBytesPerSecond;
-  return value === null || value === undefined ? "—" : formatRate(value);
-}
-
-function networkUnit(host: HostEvidence | null): string {
-  return host === null ? "" : "/s in";
-}
-
-function networkSupport(host: HostEvidence | null): string {
-  if (host === null) return "—";
-  const interface_ = host.interfaces.find((i) => i.name === "eth0") ?? host.interfaces[0];
-  if (interface_ === undefined) return "no interfaces observed";
-  return `${interface_.name} · in ${formatRate(interface_.rxBytesPerSecond ?? 0)} · out ${formatRate(interface_.txBytesPerSecond ?? 0)}`;
-}
-
-function formatRate(bytesPerSecond: number): string {
-  if (bytesPerSecond < 1024) return `${bytesPerSecond.toFixed(0)} B`;
-  if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KiB`;
-  return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-function historyTrace(kind: "cpu"): number[] {
-  void kind;
-  return [];
+function renderServices(): void {
+  const band = section("Service bearings", "FLEET");
+  const index = document.createElement("div");
+  index.className = "band-index overview-services";
+  const visible = snapshot?.services.filter(service => matchesQuery(service, query)) ?? [];
+  if (snapshot === null) {
+    index.append(note(pending.has("services") ? "Reading service states…" : "Service states are unavailable. Retrying automatically."));
+  } else if (visible.length === 0) {
+    index.append(note(query === "" ? "No services observed." : "No services match your search."));
+  }
+  for (const service of visible) {
+    const row = document.createElement("a");
+    row.className = "bearing-row";
+    row.href = `/atlas#service=${encodeURIComponent(service.id)}`;
+    const dot = document.createElement("span");
+    dot.className = `route-dot dot-${service.state}`;
+    const name = document.createElement("strong");
+    name.textContent = service.name;
+    row.append(dot, name, statusChip(service.state));
+    index.append(row);
+  }
+  band.append(index);
+  if (snapshot !== null && freshness("services", snapshot.fresh) === "stale") band.append(note("Service evidence is stale. Retrying automatically."));
+  publish("services", band);
 }
 
 function renderSchedules(): void {
-  const scheduleSection = section("Upcoming schedules", "SCHEDULES");
+  const band = section("Upcoming schedules", "SCHEDULES");
   const index = document.createElement("div");
   index.className = "band-index";
-  if (schedules.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "band-empty";
-    empty.textContent = "No schedules observed.";
-    index.append(empty);
-  } else {
-    for (const schedule of schedules.slice(0, 5)) {
-      const row = document.createElement("div");
-      row.className = "schedule-row";
-      const main = document.createElement("div");
-      main.className = "schedule-main";
-      const name = document.createElement("strong");
-      name.className = "schedule-name";
-      name.textContent = schedule.name;
-      const expr = document.createElement("code");
-      expr.className = "schedule-expr";
-      expr.textContent = schedule.rawExpression;
-      const provenance = document.createElement("span");
-      provenance.className = `provenance provenance-${schedule.source}`;
-      provenance.textContent = `${schedule.source} timer`;
-      main.append(name, expr, provenance);
-      const next = document.createElement("span");
-      next.className = "schedule-next";
-      next.textContent = schedule.nextRun === null ? "not observed" : new Date(schedule.nextRun).toLocaleString();
-      const result = document.createElement("span");
-      result.className = `status status-${schedule.lastResult === "success" ? "reachable" : schedule.lastResult === "failed" ? "down" : "dormant"}`;
-      result.textContent = schedule.lastResult === "not_observed" ? "Not observed" : stateLabel(schedule.lastResult);
-      row.append(main, next, result);
-      index.append(row);
-    }
+  const visible = (schedules ?? []).filter(s => [s.name, s.target, s.rawExpression, s.owner ?? ""].some(text => text.toLowerCase().includes(query)))
+    .sort((a, b) => (a.nextRun === null ? Infinity : Date.parse(a.nextRun)) - (b.nextRun === null ? Infinity : Date.parse(b.nextRun)));
+  if (visible.length === 0) index.append(note(schedules === null ? pending.has("schedules") ? "Reading upcoming schedules…" : "Schedules are unavailable. Retrying automatically." : query === "" ? "No schedules observed." : "No schedules match your search."));
+  for (const schedule of visible.slice(0, 5)) {
+    const row = document.createElement("a");
+    row.className = "schedule-row overview-schedule";
+    row.href = `/schedules#schedule=${encodeURIComponent(schedule.id)}`;
+    const main = document.createElement("div");
+    main.className = "schedule-main";
+    const name = document.createElement("strong");
+    name.className = "schedule-name";
+    name.textContent = schedule.name;
+    const expression = document.createElement("code");
+    expression.className = "schedule-expr";
+    expression.textContent = schedule.rawExpression || schedule.humanReadable;
+    const source = document.createElement("span");
+    source.className = `provenance provenance-${schedule.source}`;
+    source.textContent = schedule.source === "systemd" ? "systemd timer" : schedule.source;
+    main.append(name, expression, source);
+    const next = document.createElement("time");
+    next.className = "schedule-next";
+    if (schedule.nextRun !== null) next.dateTime = schedule.nextRun;
+    next.textContent = schedule.nextRun === null ? "Not observed" : new Date(schedule.nextRun).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    row.append(main, next, statusChip(schedule.lastResult));
+    index.append(row);
   }
-  scheduleSection.append(index);
-  workspace().append(scheduleSection);
+  band.append(index);
+  if (failed.has("schedules") && schedules !== null) band.append(note("Schedule evidence is stale. Retrying automatically."));
+  publish("schedules", band);
 }
 
-function renderBearings(): void {
-  const bearingsSection = section("Service bearings", "FLEET");
-  const index = document.createElement("div");
-  index.className = "band-index";
-  if (snapshot === null) {
-    const empty = document.createElement("p");
-    empty.className = "band-empty";
-    empty.textContent = "No service snapshot yet.";
-    index.append(empty);
-  } else {
-    for (const service of snapshot.services) {
-      const row = document.createElement("a");
-      row.className = "bearing-row";
-      row.href = `/atlas#service=${encodeURIComponent(service.id)}`;
-      const dot = document.createElement("span");
-      dot.className = `route-dot dot-${service.state}`;
-      const name = document.createElement("strong");
-      name.textContent = service.name;
-      const chip = document.createElement("span");
-      chip.className = `status status-${service.state}`;
-      chip.textContent = stateLabel(service.state);
-      row.append(dot, name, chip);
-      index.append(row);
-    }
-  }
-  bearingsSection.append(index);
-  workspace().append(bearingsSection);
+function recordHref(record: ActivityRecord): string {
+  if (record.targetType === "service") return `/atlas#service=${encodeURIComponent(record.target)}`;
+  if (record.targetType === "unit") return `/units#unit=${encodeURIComponent(record.target)}`;
+  if (record.targetType === "schedule") return `/schedules#schedule=${encodeURIComponent(record.target)}`;
+  return "/activity";
 }
 
 function renderActivity(): void {
-  const activitySection = section("Recent activity", "FIELD NOTES");
-  const index = document.createElement("div");
-  index.className = "band-index";
-  if (activity.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "band-empty";
-    empty.textContent = "No activity observed yet.";
-    index.append(empty);
-  } else {
-    for (const record of activity.slice(0, 8)) {
-      const row = document.createElement("div");
-      row.className = "activity-record";
-      const time = document.createElement("time");
-      time.className = "activity-time";
-      time.textContent = new Date(record.occurredAt).toLocaleTimeString();
-      const target = document.createElement("code");
-      target.className = "activity-target";
-      target.textContent = record.target;
-      const result = document.createElement("span");
-      result.className = `status status-${record.result === "success" ? "reachable" : record.result === "failure" ? "down" : "dormant"}`;
-      result.textContent = stateLabel(record.result);
-      const note = document.createElement("span");
-      note.className = "activity-note";
-      note.textContent = record.message;
-      row.append(time, target, result, note);
-      index.append(row);
-    }
+  const band = section("Recent activity", "FIELD NOTES");
+  const records = (activity ?? []).filter(r => [r.target, r.message, r.identity, r.kind, r.result].some(text => text.toLowerCase().includes(query)));
+  if (records.length === 0) band.append(note(activity === null ? pending.has("activity") ? "Reading recent activity…" : "Activity is unavailable. Retrying automatically." : query === "" ? "No activity observed yet." : "No activity matches your search."));
+  for (const record of records.slice(0, 4)) {
+    const row = document.createElement("a");
+    row.className = "activity-record";
+    row.href = recordHref(record);
+    const time = document.createElement("time");
+    time.className = "activity-time";
+    time.dateTime = record.occurredAt;
+    time.textContent = new Date(record.occurredAt).toLocaleTimeString();
+    const target = document.createElement("code");
+    target.className = "activity-target";
+    target.textContent = record.target;
+    const message = document.createElement("span");
+    message.className = "activity-note";
+    message.textContent = record.message;
+    const identity = document.createElement("code");
+    identity.className = "activity-identity";
+    identity.textContent = record.identity;
+    row.append(time, target, statusChip(record.result), message, identity);
+    band.append(row);
   }
-  activitySection.append(index);
-  workspace().append(activitySection);
-}
-
-function renderHeader(): void {
-  const banner = document.createElement("div");
-  banner.className = "overview-identity";
-  if (host !== null && host.hostname !== null) {
-    banner.innerHTML = "";
-    const name = document.createElement("strong");
-    name.textContent = host.hostname;
-    const detail = document.createElement("span");
-    detail.textContent =
-      `up ${formatUptime(host.uptimeSeconds)} · booted ${formatObserved(host.bootTime)} · ${stateLabel(host.providerState)}`;
-    banner.append(name, detail);
-  }
-  workspace().prepend(banner);
-}
-
-function render(): void {
-  const root = workspace();
-  root.textContent = "";
-  renderHeader();
-  root.append(attentionBand(activity));
-  renderHost();
-  renderSchedules();
-  renderBearings();
-  renderActivity();
+  publish("activity", band);
 }
 
 async function refresh(): Promise<void> {
-  const [nextHost, nextSchedules, nextActivity, nextSnapshot] = await Promise.all([
-    fetchHost(),
-    fetchSchedules(),
-    fetchActivity(100),
-    fetchSnapshot(null),
-  ]);
-  if (nextHost !== null) host = nextHost;
-  if (nextSchedules !== null) schedules = nextSchedules.schedules;
-  if (nextActivity !== null) activity = nextActivity.records;
-  if (nextSnapshot?.status === "ok") snapshot = nextSnapshot.snapshot;
-  render();
+  if (refreshing || document.hidden) return;
+  refreshing = true;
+  const settle = (name: string, ok: boolean) => {
+    pending.delete(name);
+    if (ok) failed.delete(name); else failed.add(name);
+  };
+  try {
+    await Promise.all([
+      fetchHost().then(next => { settle("host", next !== null); if (next !== null) host = next; renderHost(); renderAttention(); }),
+      fetchSnapshot(null).then(next => { settle("services", next.status === "ok"); if (next.status === "ok") snapshot = next.snapshot; renderServices(); renderAttention(); }),
+      fetchSchedules().then(next => { settle("schedules", next !== null); if (next !== null) schedules = next.schedules; renderSchedules(); }),
+      fetchActivity(100).then(next => { settle("activity", next !== null); if (next !== null) activity = next.records; renderActivity(); }),
+    ]);
+  } finally {
+    refreshing = false;
+  }
 }
 
 export function initOverview(): void {
+  const root = document.querySelector<HTMLElement>("#workspace");
+  if (root === null) return;
+  root.removeAttribute("aria-live");
+  root.classList.add("overview-workspace");
+  root.textContent = "";
+  for (const name of ["identity", "attention", "host", "services", "schedules", "activity"]) {
+    const slot = document.createElement("div");
+    slot.dataset.overviewRegion = name;
+    if (name === "host") slot.id = "host-condition";
+    regions.set(name, slot);
+    root.append(slot);
+  }
+  renderHost(); renderAttention(); renderServices(); renderSchedules(); renderActivity();
+  document.querySelector<HTMLInputElement>("#search")?.addEventListener("input", event => {
+    query = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    renderAttention(); renderServices(); renderSchedules(); renderActivity();
+  });
   void refresh();
   window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) void refresh();
-  });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) void refresh(); });
 }

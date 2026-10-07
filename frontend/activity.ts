@@ -2,7 +2,7 @@
 // identity, result chip, time, and evidence.
 
 import { fetchActivity, type ActivityRecord, type ActivityResponse } from "./api";
-import { stateLabel } from "./shell";
+import { statusChip } from "./shell";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -95,14 +95,8 @@ function buildRecord(record: ActivityRecord): HTMLElement {
   const target = document.createElement("code");
   target.className = "activity-target";
   target.textContent = record.target;
-  const result = document.createElement("span");
-  result.className = `status status-${
-    record.result === "success" ? "reachable"
-    : record.result === "failure" ? "down"
-    : record.result === "warning" || record.result === "denied" ? "degraded"
-    : "dormant"
-  }`;
-  result.textContent = stateLabel(record.result);
+  target.title = record.target;
+  const result = statusChip(record.result);
   const note = document.createElement("span");
   note.className = "activity-note";
   note.textContent = record.message;

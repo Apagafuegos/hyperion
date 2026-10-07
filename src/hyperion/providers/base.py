@@ -12,7 +12,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from ..models import Catalog, ComponentState, HealthState, id, selector
+from ..models import Catalog, ComponentState, DeploymentProvenance, HealthState, id, selector
 
 
 def _to_camel(name: str) -> str:
@@ -32,6 +32,7 @@ class ComponentEvidence(EvidenceModel):
     health: HealthState
     reference: str | None = None
     image: str | None = None
+    deployment: DeploymentProvenance | None = None
     uptime_seconds: int | None = None
     restart_count: int | None = None
     cpu_percent: float | None = None
@@ -88,9 +89,10 @@ class LogRecordIn(EvidenceModel):
     source: str
     provider: Literal["docker", "journald"]
     stream: Literal["stdout", "stderr", "journal", "unknown"]
-    severity: Literal[
-        "debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"
-    ] | None = None
+    severity: (
+        Literal["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
+        | None
+    ) = None
     message: str
 
 

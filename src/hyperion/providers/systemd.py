@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from ..diagnostics.linux import ReadFailure, run_read_command
 from ..models import Catalog, ComponentState, HealthState
 from .base import ComponentEvidence, LogBinding, LogRecordIn, ProviderObservation
 
@@ -21,9 +22,7 @@ _SHOW_PROPERTIES = (
     "ActiveState,SubState,MainPID,ExecMainStartTimestampMonotonic,NRestarts,LoadState"
 )
 
-_Severity = Literal[
-    "debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"
-]
+_Severity = Literal["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
 
 _ACTIVE_MAP: dict[str, tuple[ComponentState, HealthState]] = {
     "active": ("running", "healthy"),
@@ -35,8 +34,14 @@ _ACTIVE_MAP: dict[str, tuple[ComponentState, HealthState]] = {
 }
 
 _PRIORITY_TO_SEVERITY: dict[str, _Severity] = {
-    "7": "debug", "6": "info", "5": "notice", "4": "warning",
-    "3": "error", "2": "critical", "1": "alert", "0": "emergency",
+    "7": "debug",
+    "6": "info",
+    "5": "notice",
+    "4": "warning",
+    "3": "error",
+    "2": "critical",
+    "1": "alert",
+    "0": "emergency",
 }
 
 ExecRunner = Callable[[list[str]], Awaitable[tuple[int, bytes, bytes]]]
@@ -72,6 +77,30 @@ class SystemdProvider:
 
     def __init__(self, executor: ExecRunner | None = None) -> None:
         self._executor = executor or _subprocess_runner
+        self._diagnostics_executor = executor or run_read_command
+
+    async def runtime_properties(self, unit: str) -> dict[str, str]:
+        """Selected current state and execution history for a catalog-resolved unit."""
+        import re
+
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.@-]{0,119}\.service", unit):
+            raise ValueError("Invalid catalog unit")
+        properties = (
+            "Id,LoadState,ActiveState,SubState,MainPID,ControlGroup,NRestarts,Result,"
+            "ExecMainPID,ExecMainCode,ExecMainStatus,ExecMainStartTimestamp,"
+            "ExecMainExitTimestamp,ExecMainStartTimestampMonotonic,ExecMainExitTimestampMonotonic"
+        )
+        code, stdout, _ = await self._diagnostics_executor(
+            ["systemctl", "show", unit, "--no-pager", "--timestamp=us", "--property=" + properties]
+        )
+        if code != 0:
+            raise ReadFailure("MANAGER_UNAVAILABLE")
+        if len(stdout) > 65536:
+            raise ReadFailure("MANAGER_OUTPUT_LIMIT")
+        result = dict(line.split("=", 1) for line in stdout.decode().splitlines() if "=" in line)
+        if not all(key in result for key in ("LoadState", "ActiveState", "SubState", "MainPID")):
+            raise ReadFailure("MANAGER_PROPERTIES_MISSING")
+        return result
 
     async def observe(self, catalog: Catalog) -> ProviderObservation:
         observed_at = datetime.now(UTC)
@@ -86,9 +115,7 @@ class SystemdProvider:
         components: list[ComponentEvidence] = []
         try:
             for service_id, selector, unit in bindings:
-                components.append(
-                    await self._observe_unit(service_id, selector, unit, observed_at)
-                )
+                components.append(await self._observe_unit(service_id, selector, unit, observed_at))
         except Exception as exc:  # provider boundary
             logger.warning("systemd observation failed: %s", exc)
             return ProviderObservation(
@@ -108,7 +135,10 @@ class SystemdProvider:
         self, service_id: str, selector: str, unit: str, observed_at: datetime
     ) -> ComponentEvidence:
         argv = [
-            "systemctl", "show", unit, "--no-pager",
+            "systemctl",
+            "show",
+            unit,
+            "--no-pager",
             f"--property={_SHOW_PROPERTIES}",
         ]
         returncode, stdout, stderr = await self._executor(argv)
@@ -163,9 +193,15 @@ class SystemdProvider:
         self, binding: LogBinding, tail: int, before: datetime | None
     ) -> list[LogRecordIn]:
         argv = [
-            "journalctl", "--unit", binding.reference,
-            "--lines", str(tail),
-            "--output", "json", "--no-pager", "--quiet",
+            "journalctl",
+            "--unit",
+            binding.reference,
+            "--lines",
+            str(tail),
+            "--output",
+            "json",
+            "--no-pager",
+            "--quiet",
         ]
         if before is not None:
             argv += ["--until", before.isoformat().replace("+00:00", "Z")]

@@ -122,6 +122,49 @@ components:
       - services
       - diagnostics
       type: object
+    Collection:
+      additionalProperties: false
+      properties:
+        atomic:
+          const: false
+          type: boolean
+        completed_at:
+          format: date-time
+          type: string
+        consistency:
+          enum:
+          - stable
+          - changed
+          - unknown
+          type: string
+        started_at:
+          format: date-time
+          type: string
+      required:
+      - started_at
+      - completed_at
+      - atomic
+      - consistency
+      type: object
+    CommandSummary:
+      additionalProperties: false
+      properties:
+        arguments_disclosed:
+          const: false
+          type: boolean
+        executable_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+        script_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - executable_name
+      - script_name
+      - arguments_disclosed
+      type: object
     ComponentSnapshot:
       additionalProperties: false
       properties:
@@ -131,6 +174,10 @@ components:
           anyOf:
           - minimum: 0.0
             type: number
+          - type: 'null'
+        deployment:
+          anyOf:
+          - $ref: '#/components/schemas/DeploymentProvenance'
           - type: 'null'
         health:
           enum:
@@ -217,6 +264,26 @@ components:
       - cpuPercent
       - memoryBytes
       type: object
+    ControlGroup:
+      additionalProperties: false
+      properties:
+        controllers:
+          items:
+            maxLength: 64
+            type: string
+          maxItems: 16
+          type: array
+        hierarchy_id:
+          minimum: 0.0
+          type: integer
+        path:
+          maxLength: 256
+          type: string
+      required:
+      - hierarchy_id
+      - controllers
+      - path
+      type: object
     CopyActionSnapshot:
       additionalProperties: false
       properties:
@@ -241,6 +308,70 @@ components:
       - serviceId
       - state
       type: object
+    DeploymentProvenance:
+      additionalProperties: false
+      properties:
+        commitSha:
+          anyOf:
+          - maxLength: 64
+            type: string
+          - type: 'null'
+        completedAt:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        deploymentId:
+          anyOf:
+          - maxLength: 128
+            type: string
+          - type: 'null'
+        environment:
+          anyOf:
+          - maxLength: 128
+            type: string
+          - type: 'null'
+        startedAt:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        status:
+          anyOf:
+          - maxLength: 64
+            type: string
+          - type: 'null'
+      required:
+      - deploymentId
+      - commitSha
+      - startedAt
+      - completedAt
+      - status
+      - environment
+      type: object
+    DiagnosticEndpoint:
+      additionalProperties: false
+      properties:
+        address:
+          maxLength: 45
+          minLength: 2
+          type: string
+        namespace:
+          const: host
+          type: string
+        port:
+          maximum: 65535.0
+          minimum: 1.0
+          type: integer
+        protocol:
+          const: tcp
+          type: string
+      required:
+      - namespace
+      - protocol
+      - address
+      - port
+      type: object
     Diagnostics:
       additionalProperties: false
       properties:
@@ -256,6 +387,47 @@ components:
       required:
       - unmappedRuntimes
       - warnings
+      type: object
+    EndpointListenersResult:
+      additionalProperties: false
+      properties:
+        collection:
+          $ref: '#/components/schemas/Collection'
+        data:
+          anyOf:
+          - $ref: '#/components/schemas/ListenersData'
+          - type: 'null'
+        issues:
+          items:
+            $ref: '#/components/schemas/Issue'
+          type: array
+        schema_version:
+          const: '1.0'
+          type: string
+        scope:
+          $ref: '#/components/schemas/Scope'
+        service:
+          $ref: '#/components/schemas/Id'
+        snapshot_id:
+          type: string
+        source_uri:
+          type: string
+        status:
+          enum:
+          - complete
+          - partial
+          - unavailable
+          type: string
+      required:
+      - schema_version
+      - snapshot_id
+      - service
+      - status
+      - scope
+      - collection
+      - data
+      - issues
+      - source_uri
       type: object
     ErrorDetail:
       additionalProperties: false
@@ -539,6 +711,173 @@ components:
       - down
       - unknown
       type: string
+    Issue:
+      additionalProperties: false
+      properties:
+        code:
+          maxLength: 64
+          type: string
+        fields:
+          items:
+            maxLength: 128
+            type: string
+          maxItems: 16
+          type: array
+        retryable:
+          type: boolean
+      required:
+      - code
+      - fields
+      - retryable
+      type: object
+    LastExecution:
+      additionalProperties: false
+      properties:
+        exit_code:
+          anyOf:
+          - type: integer
+          - type: 'null'
+        exit_status:
+          anyOf:
+          - type: integer
+          - type: 'null'
+        exited_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        exited_monotonic_us:
+          anyOf:
+          - type: integer
+          - type: 'null'
+        pid:
+          anyOf:
+          - type: integer
+          - type: 'null'
+        result:
+          anyOf:
+          - type: string
+          - type: 'null'
+        started_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        started_monotonic_us:
+          anyOf:
+          - type: integer
+          - type: 'null'
+      required:
+      - pid
+      - result
+      - exit_code
+      - exit_status
+      - started_at
+      - exited_at
+      - started_monotonic_us
+      - exited_monotonic_us
+      type: object
+    Listener:
+      additionalProperties: false
+      properties:
+        endpoint_overlap:
+          enum:
+          - exact
+          - wildcard
+          - potential_ipv6
+          type: string
+        family:
+          enum:
+          - ipv4
+          - ipv6
+          type: string
+        incompatible_bind:
+          const: unknown
+          type: string
+        inode:
+          minimum: 1.0
+          type: integer
+        local_address:
+          type: string
+        local_port:
+          type: integer
+        network_namespace_ref:
+          type: string
+        owners:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ProcessIdentity'
+            maxItems: 12
+            type: array
+          - type: 'null'
+        protocol:
+          const: tcp
+          type: string
+        socket_id:
+          type: string
+        state:
+          const: LISTEN
+          type: string
+      required:
+      - socket_id
+      - inode
+      - family
+      - protocol
+      - network_namespace_ref
+      - local_address
+      - local_port
+      - state
+      - endpoint_overlap
+      - incompatible_bind
+      - owners
+      type: object
+    ListenerCoverage:
+      additionalProperties: false
+      properties:
+        owner_resolution:
+          enum:
+          - complete
+          - partial
+          - unavailable
+          type: string
+        socket_enumeration:
+          enum:
+          - complete
+          - partial
+          - unavailable
+          type: string
+        truncated:
+          type: boolean
+      required:
+      - socket_enumeration
+      - owner_resolution
+      - truncated
+      type: object
+    ListenersData:
+      additionalProperties: false
+      properties:
+        coverage:
+          $ref: '#/components/schemas/ListenerCoverage'
+        endpoint:
+          $ref: '#/components/schemas/DiagnosticEndpoint'
+        endpoint_id:
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$
+          type: string
+        listeners:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/Listener'
+            maxItems: 24
+            type: array
+          - type: 'null'
+      required:
+      - endpoint_id
+      - endpoint
+      - listeners
+      - coverage
+      type: object
     LogRecord:
       additionalProperties: false
       properties:
@@ -729,6 +1068,23 @@ components:
       - timerUnit
       - lastRun
       type: object
+    ManagerScope:
+      additionalProperties: false
+      properties:
+        kind:
+          enum:
+          - system
+          - user
+          - unknown
+          type: string
+        uid:
+          anyOf:
+          - type: integer
+          - type: 'null'
+      required:
+      - kind
+      - uid
+      type: object
     NetworkInterfaceEvidence:
       additionalProperties: false
       properties:
@@ -859,6 +1215,55 @@ components:
       - stale
       - helper_unavailable
       type: string
+    Owner:
+      additionalProperties: false
+      properties:
+        container_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+        kind:
+          enum:
+          - systemd
+          - container
+          - unknown
+          type: string
+        manager_scope:
+          $ref: '#/components/schemas/ManagerScope'
+        method:
+          enum:
+          - cgroup_path
+          - unavailable
+          type: string
+        unit_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - kind
+      - unit_name
+      - manager_scope
+      - container_ref
+      - method
+      type: object
+    Parent:
+      additionalProperties: false
+      properties:
+        identity:
+          anyOf:
+          - $ref: '#/components/schemas/ProcessIdentity'
+          - type: 'null'
+        observation:
+          const: current_parent
+          type: string
+        pid:
+          minimum: 1.0
+          type: integer
+      required:
+      - pid
+      - identity
+      - observation
+      type: object
     PressureEvidence:
       additionalProperties: false
       properties:
@@ -888,6 +1293,155 @@ components:
       - someAvg10
       - someAvg300
       - fullAvg10
+      type: object
+    ProcessCoverage:
+      additionalProperties: false
+      properties:
+        process_enumeration:
+          enum:
+          - complete
+          - partial
+          - unavailable
+          type: string
+        truncated:
+          type: boolean
+      required:
+      - process_enumeration
+      - truncated
+      type: object
+    ProcessData:
+      additionalProperties: false
+      properties:
+        command_summary:
+          anyOf:
+          - $ref: '#/components/schemas/CommandSummary'
+          - type: 'null'
+        control_groups:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ControlGroup'
+            maxItems: 8
+            type: array
+          - type: 'null'
+        executable:
+          anyOf:
+          - type: string
+          - type: 'null'
+        name:
+          maxLength: 64
+          type: string
+        owner:
+          $ref: '#/components/schemas/Owner'
+        parent:
+          anyOf:
+          - $ref: '#/components/schemas/Parent'
+          - type: 'null'
+        pid:
+          minimum: 1.0
+          type: integer
+        process_ref:
+          anyOf:
+          - maxLength: 37
+            minLength: 37
+            pattern: ^proc_[A-Za-z0-9_-]{32}$
+            type: string
+          - type: 'null'
+        relationship_to_service:
+          $ref: '#/components/schemas/Relationship'
+        start_ticks:
+          minimum: 0.0
+          type: integer
+        started_at:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+        state:
+          type: string
+        working_directory:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - pid
+      - process_ref
+      - name
+      - start_ticks
+      - state
+      - started_at
+      - parent
+      - executable
+      - working_directory
+      - command_summary
+      - control_groups
+      - owner
+      - relationship_to_service
+      type: object
+    ProcessIdentity:
+      additionalProperties: false
+      properties:
+        name:
+          maxLength: 64
+          type: string
+        pid:
+          minimum: 1.0
+          type: integer
+        process_ref:
+          anyOf:
+          - maxLength: 37
+            minLength: 37
+            pattern: ^proc_[A-Za-z0-9_-]{32}$
+            type: string
+          - type: 'null'
+        start_ticks:
+          minimum: 0.0
+          type: integer
+      required:
+      - pid
+      - process_ref
+      - name
+      - start_ticks
+      type: object
+    ProcessResult:
+      additionalProperties: false
+      properties:
+        collection:
+          $ref: '#/components/schemas/Collection'
+        data:
+          anyOf:
+          - $ref: '#/components/schemas/ProcessData'
+          - type: 'null'
+        issues:
+          items:
+            $ref: '#/components/schemas/Issue'
+          type: array
+        schema_version:
+          const: '1.0'
+          type: string
+        scope:
+          $ref: '#/components/schemas/Scope'
+        service:
+          $ref: '#/components/schemas/Id'
+        snapshot_id:
+          type: string
+        source_uri:
+          type: string
+        status:
+          enum:
+          - complete
+          - partial
+          - unavailable
+          type: string
+      required:
+      - schema_version
+      - snapshot_id
+      - service
+      - status
+      - scope
+      - collection
+      - data
+      - issues
+      - source_uri
       type: object
     ProviderStatus:
       additionalProperties: false
@@ -919,6 +1473,37 @@ components:
       - state
       - observedAt
       - message
+      type: object
+    Relationship:
+      additionalProperties: false
+      properties:
+        expected_control_group:
+          anyOf:
+          - type: string
+          - type: 'null'
+        expected_unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+        kind:
+          enum:
+          - main_process
+          - same_unit
+          - another_owner
+          - unknown
+          type: string
+        method:
+          enum:
+          - systemd_main_pid_and_cgroup
+          - unit_control_group
+          - cgroup_unit_identity
+          - unavailable
+          type: string
+      required:
+      - kind
+      - method
+      - expected_unit
+      - expected_control_group
       type: object
     RouteSnapshot:
       additionalProperties: false
@@ -967,6 +1552,78 @@ components:
       - consecutiveFailures
       - observedAt
       - error
+      type: object
+    RuntimeData:
+      additionalProperties: false
+      properties:
+        active_state:
+          anyOf:
+          - type: string
+          - type: 'null'
+        control_group:
+          anyOf:
+          - type: string
+          - type: 'null'
+        coverage:
+          $ref: '#/components/schemas/ProcessCoverage'
+        endpoints:
+          additionalProperties:
+            $ref: '#/components/schemas/DiagnosticEndpoint'
+          type: object
+        last_execution:
+          $ref: '#/components/schemas/LastExecution'
+        load_state:
+          anyOf:
+          - type: string
+          - type: 'null'
+        main_pid:
+          anyOf:
+          - type: integer
+          - type: 'null'
+        main_process_ref:
+          anyOf:
+          - maxLength: 37
+            minLength: 37
+            pattern: ^proc_[A-Za-z0-9_-]{32}$
+            type: string
+          - type: 'null'
+        manager_scope:
+          $ref: '#/components/schemas/ManagerScope'
+        processes:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ProcessIdentity'
+            maxItems: 24
+            type: array
+          - type: 'null'
+        restart_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+        runtime_provider:
+          const: systemd
+          type: string
+        sub_state:
+          anyOf:
+          - type: string
+          - type: 'null'
+        unit_name:
+          type: string
+      required:
+      - runtime_provider
+      - unit_name
+      - manager_scope
+      - load_state
+      - active_state
+      - sub_state
+      - main_pid
+      - main_process_ref
+      - control_group
+      - restart_count
+      - last_execution
+      - processes
+      - coverage
+      - endpoints
       type: object
     ScheduleInventoryResponse:
       additionalProperties: false
@@ -1055,11 +1712,89 @@ components:
       - cron
       - managed
       type: string
+    Scope:
+      additionalProperties: false
+      properties:
+        boot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+        host_ref:
+          maxLength: 64
+          type: string
+        network_namespace_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+        pid_namespace_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - host_ref
+      - boot_id
+      - pid_namespace_ref
+      - network_namespace_ref
+      type: object
     ServiceAction:
       anyOf:
       - $ref: '#/components/schemas/OpenActionSnapshot'
       - $ref: '#/components/schemas/CopyActionSnapshot'
       - $ref: '#/components/schemas/NoneActionSnapshot'
+    ServiceDiagnostics:
+      additionalProperties: false
+      properties:
+        endpoints:
+          additionalProperties:
+            $ref: '#/components/schemas/DiagnosticEndpoint'
+          maxProperties: 16
+          propertyNames:
+            $ref: '#/components/schemas/id'
+          type: object
+      required:
+      - endpoints
+      type: object
+    ServiceRuntimeResult:
+      additionalProperties: false
+      properties:
+        collection:
+          $ref: '#/components/schemas/Collection'
+        data:
+          anyOf:
+          - $ref: '#/components/schemas/RuntimeData'
+          - type: 'null'
+        issues:
+          items:
+            $ref: '#/components/schemas/Issue'
+          type: array
+        schema_version:
+          const: '1.0'
+          type: string
+        scope:
+          $ref: '#/components/schemas/Scope'
+        service:
+          $ref: '#/components/schemas/Id'
+        snapshot_id:
+          type: string
+        source_uri:
+          type: string
+        status:
+          enum:
+          - complete
+          - partial
+          - unavailable
+          type: string
+      required:
+      - schema_version
+      - snapshot_id
+      - service
+      - status
+      - scope
+      - collection
+      - data
+      - issues
+      - source_uri
+      type: object
     ServiceSnapshot:
       additionalProperties: false
       properties:
@@ -1076,6 +1811,10 @@ components:
         description:
           maxLength: 160
           type: string
+        diagnosticEndpoints:
+          anyOf:
+          - $ref: '#/components/schemas/ServiceDiagnostics'
+          - type: 'null'
         id:
           $ref: '#/components/schemas/Id'
         intent:
@@ -1410,6 +2149,11 @@ components:
       - component
       - state
       type: object
+    id:
+      maxLength: 64
+      minLength: 1
+      pattern: ^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$
+      type: string
   securitySchemes:
     authentikIdentity:
       in: header
@@ -1452,6 +2196,85 @@ paths:
       security:
       - APIKeyHeader: []
       summary: Get recorded activity
+  /api/v1/diagnostics/endpoint-listeners:
+    get:
+      operationId: get_endpoint_listeners_api_v1_diagnostics_endpoint_listeners_get
+      parameters:
+      - in: query
+        name: service
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - in: query
+        name: endpoint_id
+        required: true
+        schema:
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndpointListenersResult'
+          description: Successful Response
+      security:
+      - APIKeyHeader: []
+      summary: Get Endpoint Listeners
+      tags:
+      - diagnostics
+  /api/v1/diagnostics/process:
+    get:
+      operationId: inspect_process_api_v1_diagnostics_process_get
+      parameters:
+      - in: query
+        name: service
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      - in: query
+        name: process_ref
+        required: true
+        schema:
+          maxLength: 37
+          minLength: 37
+          pattern: ^proc_[A-Za-z0-9_-]{32}$
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessResult'
+          description: Successful Response
+      security:
+      - APIKeyHeader: []
+      summary: Inspect Process
+      tags:
+      - diagnostics
+  /api/v1/diagnostics/service-runtime:
+    get:
+      operationId: get_service_runtime_api_v1_diagnostics_service_runtime_get
+      parameters:
+      - in: query
+        name: service
+        required: true
+        schema:
+          $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRuntimeResult'
+          description: Successful Response
+      security:
+      - APIKeyHeader: []
+      summary: Get Service Runtime
+      tags:
+      - diagnostics
   /api/v1/host:
     get:
       description: Get the current bounded host evidence sample.

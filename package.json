@@ -8,7 +8,9 @@
     "watch": "vite build --watch",
     "test": "vitest run",
     "lint": "eslint frontend tests && tsc --noEmit",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "demo": "npm run build && uv run python scripts/demo.py",
+    "demo:record": "node scripts/record-demo.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geologica": "^5.2.0",

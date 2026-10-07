@@ -17,30 +17,41 @@ export function showToast(message: string): void {
 
 export function statusChip(state: string, label: string | null = null): HTMLElement {
   const chip = document.createElement("span");
-  chip.className = `status status-${state}`;
+  const tone = ["success", "active"].includes(state) ? "reachable"
+    : ["failed", "failure"].includes(state) ? "down"
+    : ["warning", "denied"].includes(state) ? "degraded"
+    : ["info", "not_observed", "inactive"].includes(state) ? "dormant" : state;
+  chip.className = `status status-${tone}`;
   chip.textContent = label ?? stateLabel(state);
   return chip;
 }
 
 export function stateLabel(state: string): string {
   switch (state) {
-    case "reachable": case "active": case "success": return "Reachable";
-    case "degraded": case "warning": return "Degraded";
-    case "down": case "failed": return "Down";
+    case "reachable": return "Reachable";
+    case "degraded": return "Degraded";
+    case "down": return "Down";
     case "dormant": return "Dormant";
+    case "active": return "Active";
+    case "inactive": return "Inactive";
+    case "activating": return "Starting";
+    case "deactivating": return "Stopping";
+    case "success": return "Successful";
+    case "failure": case "failed": return "Failed";
+    case "warning": return "Warning";
+    case "info": return "Information";
     case "pending": return "Pending";
     case "denied": return "Denied";
     case "not_observed": return "Not observed";
+    case "available": return "Available";
+    case "unavailable": return "Unavailable";
+    case "fresh": return "Fresh";
+    case "stale": return "Stale";
     default: return "Unknown";
   }
 }
 
-export function formatBytes(bytes: number | null): string {
-  if (bytes === null) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-}
+export { formatBytes } from "./logic";
 
 export function formatObserved(iso: string | null, now: number = Date.now()): string {
   if (iso === null) return "never";

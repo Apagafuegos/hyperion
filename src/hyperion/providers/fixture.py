@@ -27,6 +27,7 @@ from .base import (
     ProbeObservation,
     ProviderObservation,
 )
+from .cron import parse_cron_expression
 
 
 class FixtureRuntimeProvider:
@@ -115,6 +116,8 @@ class FixtureHostProvider:
         evidence = HostEvidence.model_validate(self._raw["host"])
         evidence.observed_at = now
         evidence.fresh = True
+        if evidence.uptime_seconds is not None:
+            evidence.boot_time = now - timedelta(seconds=evidence.uptime_seconds)
         return evidence
 
 
@@ -174,8 +177,15 @@ class FixtureScheduleProvider:
     async def inventory(self) -> ScheduleInventoryResponse:
         now = datetime.now(UTC)
         schedules = [ScheduleSnapshot.model_validate(item) for item in self._raw["schedules"]]
-        for index, schedule in enumerate(schedules):
-            schedule.next_run = now + timedelta(minutes=(index + 1) * 45)
-            if schedule.last_run is not None:
-                schedule.last_run = now - timedelta(hours=(index + 1) * 12)
+        for schedule in schedules:
+            if schedule.source == "cron":
+                schedule.next_run = parse_cron_expression(schedule.raw_expression, now).next_run
+            elif schedule.source == "systemd" and schedule.raw_expression.startswith("*-*-* "):
+                # The fixture calendar is daily; anchor it to the calendar's
+                # clock time rather than inventing a next run relative to now.
+                hour, minute, second = map(int, schedule.raw_expression.split()[1].split(":"))
+                today = now.replace(hour=hour, minute=minute, second=second, microsecond=0)
+                schedule.next_run = today if today > now else today + timedelta(days=1)
+                if schedule.last_run is not None:
+                    schedule.last_run = today if today <= now else today - timedelta(days=1)
         return ScheduleInventoryResponse(generated_at=now, fresh=True, schedules=schedules)

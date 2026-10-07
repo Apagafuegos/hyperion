@@ -71,6 +71,8 @@ def _settings(catalog_path: Path, state_dir: Path | None = None) -> Settings:
 def get(client, path, **kwargs):
     headers = kwargs.pop("headers", {})
     headers["X-Authentik-Username"] = "owner"
+    headers["X-Management-Proxy-Secret"] = "hyperion-test-proxy-proof"
+    headers["X-Authentik-Groups"] = "authentik Admins"
     return client.get(path, headers=headers, **kwargs)
 
 
@@ -79,7 +81,7 @@ def _assert_unavailable(client: TestClient) -> None:
     ready = client.get("/readyz")
     assert ready.status_code == 503
     assert ready.json()["error"]["code"] == "SNAPSHOT_UNAVAILABLE"
-    snapshot = client.get("/api/v1/snapshot", headers={"X-Authentik-Username": "owner"})
+    snapshot = get(client, "/api/v1/snapshot")
     assert snapshot.status_code == 503
     assert snapshot.json()["error"]["code"] == "SNAPSHOT_UNAVAILABLE"
 
@@ -149,7 +151,8 @@ def test_provider_unavailable_logs_report_unavailable(monkeypatch, tmp_path) -> 
         settings=_settings(FIXTURES / "fixture-services.yaml", state_dir=tmp_path / "state")
     )
     with TestClient(app) as client:
-        response = client.get(
+        response = get(
+            client,
             "/api/v1/services/t3-code/logs?tail=50",
             headers={"X-Authentik-Username": "owner"},
         )

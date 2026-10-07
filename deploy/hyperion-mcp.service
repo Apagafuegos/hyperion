@@ -1,0 +1,21 @@
+[Unit]
+Description=Hyperion MCP connector
+After=network-online.target hyperion.service
+Wants=network-online.target
+
+[Service]
+User=hyperion
+Group=hyperion
+EnvironmentFile=/etc/hyperion/mcp.env
+WorkingDirectory=/opt/hyperion
+ExecStart=/opt/hyperion/.venv/bin/hyperion-mcp
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/hyperion
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

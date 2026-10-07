@@ -29,3 +29,6 @@ coverage/
 
 # Lockfiles (global gitignore ignores *.lock; uv.lock must be committed)
 !uv.lock
+
+# Local portfolio recordings and evidence
+.portfolio-demo/

@@ -1,28 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://hyperion.local/schema/services.schema.json",
-  "title": "Hyperion service catalog",
-  "description": "Version 1 manifest for logical services and their allowlisted runtime components.",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "version",
-    "services"
-  ],
-  "properties": {
-    "version": {
-      "const": 1,
-      "title": "Version",
-      "type": "integer"
-    },
-    "services": {
-      "items": {
-        "$ref": "#/$defs/Service"
-      },
-      "title": "Services",
-      "type": "array"
-    }
-  },
   "$defs": {
     "Action": {
       "anyOf": [
@@ -56,6 +32,41 @@
         "url"
       ],
       "title": "CopyAction",
+      "type": "object"
+    },
+    "DiagnosticEndpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "const": "host",
+          "title": "Namespace",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "tcp",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "address": {
+          "maxLength": 45,
+          "minLength": 2,
+          "title": "Address",
+          "type": "string"
+        },
+        "port": {
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Port",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "namespace",
+        "protocol",
+        "address",
+        "port"
+      ],
+      "title": "DiagnosticEndpoint",
       "type": "object"
     },
     "DockerComponent": {
@@ -342,6 +353,17 @@
         "logs": {
           "$ref": "#/$defs/Logs"
         },
+        "diagnostics": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceDiagnostics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "dependencies": {
           "default": [],
           "items": {
@@ -363,6 +385,27 @@
         "logs"
       ],
       "title": "Service",
+      "type": "object"
+    },
+    "ServiceDiagnostics": {
+      "additionalProperties": false,
+      "properties": {
+        "endpoints": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DiagnosticEndpoint"
+          },
+          "maxProperties": 16,
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "title": "Endpoints",
+          "type": "object"
+        }
+      },
+      "required": [
+        "endpoints"
+      ],
+      "title": "ServiceDiagnostics",
       "type": "object"
     },
     "SystemdComponent": {
@@ -449,5 +492,29 @@
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_.@-]*$",
       "type": "string"
     }
-  }
+  },
+  "additionalProperties": false,
+  "description": "Version 1 manifest for logical services and their allowlisted runtime components.",
+  "properties": {
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "services": {
+      "items": {
+        "$ref": "#/$defs/Service"
+      },
+      "title": "Services",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version",
+    "services"
+  ],
+  "title": "Catalog",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperion.local/schema/services.schema.json"
 }

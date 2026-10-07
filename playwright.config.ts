@@ -5,6 +5,7 @@ import { defineConfig } from "@playwright/test";
 //   PLAYWRIGHT_BASE_URL=http://127.0.0.1:8790 npx playwright test
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:8787";
 const port = new URL(baseURL).port;
+const fixtureProxySecret = "hyperion-browser-fixture-proxy";
 
 export default defineConfig({
   testDir: "tests/browser",
@@ -12,10 +13,15 @@ export default defineConfig({
   timeout: 30_000,
   use: {
     baseURL,
-    extraHTTPHeaders: { "X-Authentik-Username": "test-owner" },
+    extraHTTPHeaders: {
+      "X-Authentik-Username": "test-owner",
+      "X-Authentik-Groups": "authentik Admins",
+      "X-Management-Proxy-Secret": fixtureProxySecret,
+    },
   },
   webServer: {
     command: `HYPERION_FIXTURE_MODE=1 HYPERION_CATALOG_PATH=tests/fixtures/fixture-services.yaml HYPERION_STATE_DIR=${process.env.HYPERION_STATE_DIR ?? ".playwright-state"} uv run uvicorn hyperion.main:app --host 127.0.0.1 --port ${port} --workers 1`,
+    env: { MANAGEMENT_PROXY_SECRET: fixtureProxySecret },
     url: `${baseURL}/healthz`,
     reuseExistingServer: false,
     timeout: 30_000,

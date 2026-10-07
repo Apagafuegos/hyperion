@@ -15,10 +15,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import RequestResponseEndpoint
 
+from .api.diagnostics import router as diagnostics_router
 from .api.errors import ApiError, api_error_handler, validation_error_handler
 from .api.resources import router as resources_router
 from .api.routes import router as api_router
 from .catalog import CatalogError, load_catalog
+from .diagnostics.provider import DiagnosticsProvider
 from .models import AtlasSnapshot, Catalog
 from .ops import OperationHelperClient
 from .providers.base import RouteProbeProvider, RuntimeProvider
@@ -61,7 +63,7 @@ WORKSPACE_STATEMENTS = {
 }
 
 WORKSPACE_SEARCH = {
-    "overview": "Search services, units, schedules…",
+    "overview": "Search services, schedules, activity…",
     "atlas": "Find services, endpoints…",
     "schedules": "Search schedules, commands, sources…",
     "units": "Search units, descriptions, states…",
@@ -69,12 +71,17 @@ WORKSPACE_SEARCH = {
 }
 
 PROTECTED_UNITS = {
-    "ssh.service", "sshd.service", "ssh.socket",
-    "systemd-networkd.service", "NetworkManager.service", "networking.service",
+    "ssh.service",
+    "sshd.service",
+    "ssh.socket",
+    "systemd-networkd.service",
+    "NetworkManager.service",
+    "networking.service",
     "network.service",
     "docker.service",
     "caddy.service",
-    "authentik-server.service", "authentik-worker.service",
+    "authentik-server.service",
+    "authentik-worker.service",
 }
 
 
@@ -108,6 +115,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.error("catalog invalid at startup; readiness will remain false: %s", exc)
     catalog = base_catalog
     app.state.catalog = catalog
+    # Fixture mode must never inspect the preview machine's live processes.
+    app.state.diagnostics_provider = DiagnosticsProvider(enabled=not settings.fixture_mode)
 
     # Host telemetry is independent of service reconciliation.
     host_provider = _build_host_provider(settings)
@@ -465,6 +474,7 @@ def _workspace_template(request: Request, workspace: str) -> Response:
             "index.html",
             {
                 "workspace": workspace,
+                "fixture_mode": request.app.state.settings.fixture_mode,
                 "workspace_statement": WORKSPACE_STATEMENTS[workspace],
                 "search_placeholder": WORKSPACE_SEARCH[workspace],
             },
@@ -485,9 +495,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
 
     @app.middleware("http")
-    async def security_headers(
-        request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def security_headers(request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
         response.headers["Content-Security-Policy"] = CSP
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -503,15 +511,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.include_router(api_router)
     app.include_router(resources_router)
+    app.include_router(diagnostics_router)
 
     @app.get("/", include_in_schema=False)
     def index(request: Request) -> Response:
         return _require_identity(request, "atlas")
 
     for workspace in WORKSPACES:
-        app.get(f"/{workspace}", include_in_schema=False)(
-            _workspace_route_factory(workspace)
-        )
+        app.get(f"/{workspace}", include_in_schema=False)(_workspace_route_factory(workspace))
 
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

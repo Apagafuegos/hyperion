@@ -56,9 +56,16 @@ test.describe("schedules workspace", () => {
 
   test("selecting a schedule opens its dossier and updates the URL", async ({ page }) => {
     await page.goto("/schedules");
-    await page.locator(".schedule-select").first().click();
-    await expect(page.locator(".schedule-dossier")).toBeVisible();
+    const row = page.locator(".schedule-row").first();
+    await row.locator(".schedule-select").click();
+    const dossier = row.locator(".schedule-dossier");
+    await expect(dossier).toBeVisible();
     await expect(page).toHaveURL(/#schedule=/);
+
+    const [rowBox, dossierBox] = await Promise.all([row.boundingBox(), dossier.boundingBox()]);
+    expect(rowBox).not.toBeNull();
+    expect(dossierBox).not.toBeNull();
+    expect(dossierBox!.width).toBeGreaterThan(rowBox!.width * 0.65);
   });
 });
 

@@ -11,7 +11,14 @@ from functools import partial
 from typing import Any, Literal
 
 from ..catalog import DiscoveredDockerComponent, merge_discovered_docker
-from ..models import Catalog, ComponentState, DockerComponent, HealthState, Service
+from ..models import (
+    Catalog,
+    ComponentState,
+    DeploymentProvenance,
+    DockerComponent,
+    HealthState,
+    Service,
+)
 from .base import (
     ComponentEvidence,
     LogBinding,
@@ -284,15 +291,14 @@ class DockerProvider:
         docker_state = _STATE_MAP.get(raw_state, "unknown")
         raw_health = (state_info.get("Health") or {}).get("Status")
         health = (
-            "unconfigured"
-            if raw_health is None
-            else _HEALTH_MAP.get(str(raw_health), "unknown")
+            "unconfigured" if raw_health is None else _HEALTH_MAP.get(str(raw_health), "unknown")
         )
         if docker_state == "running" and health == "starting":
             docker_state = "starting"
 
         reference = (attrs.get("Name") or "/").lstrip("/")
         image = attrs.get("Config", {}).get("Image")
+        labels = attrs.get("Config", {}).get("Labels", {}) or {}
         restart_count = attrs.get("RestartCount")
         started = _parse_timestamp(str(state_info.get("StartedAt", "")))
         uptime = None
@@ -307,6 +313,7 @@ class DockerProvider:
             health=health,
             reference=reference[:128],
             image=str(image)[:256] if image else None,
+            deployment=_deployment_provenance(labels),
             uptime_seconds=uptime,
             restart_count=restart_count if isinstance(restart_count, int) else None,
             observed_at=observed_at,
@@ -391,6 +398,41 @@ def _parse_log_lines(
 
 def _label_true(value: object) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _deployment_provenance(labels: dict[str, Any]) -> DeploymentProvenance | None:
+    """Read deployment provenance from explicit Docker labels."""
+    values = {
+        "deployment_id": labels.get("hyperion.deployment.id"),
+        "commit_sha": labels.get("org.opencontainers.image.revision")
+        or labels.get("hyperion.deployment.commit_sha"),
+        "started_at": labels.get("hyperion.deployment.started_at"),
+        "completed_at": labels.get("hyperion.deployment.completed_at"),
+        "status": labels.get("hyperion.deployment.status"),
+        "environment": labels.get("hyperion.environment"),
+    }
+    if not any(value is not None for value in values.values()):
+        return None
+    return DeploymentProvenance(
+        deployment_id=(
+            str(values["deployment_id"])[:128] if values["deployment_id"] is not None else None
+        ),
+        commit_sha=(str(values["commit_sha"])[:64] if values["commit_sha"] is not None else None),
+        started_at=(
+            _parse_timestamp(str(values["started_at"]))
+            if values["started_at"] is not None
+            else None
+        ),
+        completed_at=(
+            _parse_timestamp(str(values["completed_at"]))
+            if values["completed_at"] is not None
+            else None
+        ),
+        status=str(values["status"])[:64] if values["status"] is not None else None,
+        environment=(
+            str(values["environment"])[:128] if values["environment"] is not None else None
+        ),
+    )
 
 
 def _label_false(value: object) -> bool:

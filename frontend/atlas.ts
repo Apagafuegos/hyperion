@@ -16,6 +16,7 @@ import {
   severityTone,
   stateLabel,
 } from "./logic";
+import { LogViewer } from "./logs";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -32,6 +33,9 @@ interface ClientState {
   priorSelection: string | null;
   logs: Map<string, LogCacheEntry>;
 }
+
+const pendingLogs = new Map<string, Promise<void>>();
+let refreshingSnapshot = false;
 
 const state: ClientState = {
   snapshot: null,
@@ -54,7 +58,10 @@ const searchInput = $("#search") as HTMLInputElement;
 const logDrawer = $("#log-drawer") as HTMLDetailsElement;
 const logSource = $("#log-source") as HTMLSelectElement;
 const logTail = $("#log-tail") as HTMLSelectElement;
-const logRows = $("#log-rows");
+const logViewer = new LogViewer("Service logs");
+logViewer.rows.id = "log-rows";
+$("#log-viewer").append(logViewer.element);
+const logRefresh = $<HTMLButtonElement>("#log-refresh");
 const logState = $("#log-state");
 const logSubject = $("#log-subject");
 const toastElement = $("#toast");
@@ -178,13 +185,26 @@ function serviceFacts(service: ServiceSnapshot): [string, string][] {
   ];
 }
 
+function routeEvidence(service: ServiceSnapshot): HTMLElement {
+  const section = dossierSection("Route evidence", serviceFacts(service));
+  const logs = document.createElement("button");
+  logs.type = "button";
+  logs.className = "button-route dossier-logs";
+  logs.dataset.inspectLogs = service.id;
+  logs.textContent = "View logs";
+  logs.disabled = !service.logSources.some(source => source.available);
+  if (logs.disabled) logs.title = "No log sources are available.";
+  section.append(logs);
+  return section;
+}
+
 function buildDossier(service: ServiceSnapshot): HTMLElement {
   const dossier = document.createElement("div");
   dossier.className = "dossier";
   dossier.hidden = true;
   dossier.dataset.dossierFor = service.id;
   dossier.append(
-    dossierSection("Route evidence", serviceFacts(service)),
+    routeEvidence(service),
     dossierComponents(service),
     dossierDependencies(service),
     dossierReasons(service),
@@ -374,7 +394,7 @@ function patchRow(row: HTMLElement, service: ServiceSnapshot): void {
 
 function patchDossier(dossier: HTMLElement, service: ServiceSnapshot): void {
   const sections = dossier.querySelectorAll<HTMLElement>(":scope > section");
-  if (sections[0]) sections[0].replaceWith(dossierSection("Route evidence", serviceFacts(service)));
+  if (sections[0]) sections[0].replaceWith(routeEvidence(service));
   if (sections[1]) sections[1].replaceWith(dossierComponents(service));
   if (sections[2]) sections[2].replaceWith(dossierDependencies(service));
   if (sections[3]) sections[3].replaceWith(dossierReasons(service));
@@ -448,6 +468,7 @@ function selectService(serviceId: string | null): void {
 
 function applyFilter(): void {
   if (state.snapshot === null) return;
+  atlasFrame.classList.toggle("is-filtered", state.query.trim() !== "");
   const visible = filterVisible(state.snapshot.services, state.query);
   const fallback =
     state.priorSelection !== null && visible.has(state.priorSelection) ? state.priorSelection : null;
@@ -486,11 +507,19 @@ function applyFilter(): void {
 
 function updateLogsDrawer(): void {
   const service = state.snapshot?.services.find((s) => s.id === state.selectedId) ?? null;
+  const sameService = logSubject.dataset.serviceId === service?.id;
+  if (!sameService) logViewer.reset();
+  logSource.disabled = service === null;
+  logTail.disabled = service === null;
+  logRefresh.disabled = service === null;
+  logRefresh.textContent = "Refresh";
+  logState.textContent = "";
+  const previousSource = logSource.value;
+  logSubject.dataset.serviceId = service?.id ?? "";
   logSource.textContent = "";
   if (service === null) {
     logSubject.textContent = "Select a service to inspect its logs.";
     logState.textContent = "";
-    logRows.textContent = "";
     return;
   }
   logSubject.textContent = `Logs for ${service.name}`;
@@ -505,7 +534,11 @@ function updateLogsDrawer(): void {
     if (!source.available) option.disabled = true;
     logSource.append(option);
   }
-  void loadLogs(service, false);
+  if (sameService && service.logSources.some(source => source.key === previousSource && source.available)) {
+    logSource.value = previousSource;
+  }
+  if (logDrawer.open) void loadLogs(service, false);
+  else logViewer.setState("Open logs to load recent records.");
 }
 
 function currentLogKey(): string {
@@ -517,21 +550,40 @@ async function loadLogs(service: ServiceSnapshot, force: boolean): Promise<void>
   const tail = Number(logTail.value);
   const key = logCacheKey(service.id, source, tail);
   const cached = state.logs.get(key);
+  const renderCached = () => {
+    if (key !== currentLogKey()) return;
+    const entry = state.logs.get(key);
+    if (entry === undefined || entry === "loading") return;
+    if ("status" in entry) renderLogsError(entry.message, entry.retryable);
+    else renderLogs(entry);
+  };
   if (!force && cached !== undefined && cached !== "loading") {
-    if ("status" in cached) renderLogsError(cached.message, cached.retryable);
-    else renderLogs(cached);
+    renderCached();
+    return;
+  }
+  logState.textContent = "Loading logs…";
+  logRefresh.disabled = true;
+  logRefresh.textContent = "Loading…";
+  logViewer.setState("Loading recent log records…", true);
+  const inFlight = pendingLogs.get(key);
+  if (inFlight !== undefined) {
+    await inFlight;
+    renderCached();
     return;
   }
   state.logs.set(key, "loading");
-  logState.textContent = "Loading logs…";
-  const result = await fetchLogs(service.id, source, tail);
-  if (key !== currentLogKey()) return;
-  if (result.status === "ok") {
-    state.logs.set(key, result.logs);
-    renderLogs(result.logs);
-  } else {
-    state.logs.set(key, { status: "error", message: result.message, retryable: result.retryable });
-    renderLogsError(result.message, result.retryable);
+  const request = (async () => {
+    const result = await fetchLogs(service.id, source, tail);
+    // Cache even when selection changed. Only the current key may render.
+    state.logs.set(key, result.status === "ok" ? result.logs
+      : { status: "error", message: result.message, retryable: result.retryable });
+  })();
+  pendingLogs.set(key, request);
+  try {
+    await request;
+    renderCached();
+  } finally {
+    pendingLogs.delete(key);
   }
 }
 
@@ -540,45 +592,21 @@ function logCacheKey(serviceId: string, source: string | null, tail: number): st
 }
 
 function renderLogs(logs: LogsResponse): void {
-  logRows.textContent = "";
-  logState.textContent = "";
-  if (logs.records.length === 0) {
-    const note = document.createElement("p");
-    note.className = "log-empty";
-    note.textContent = "No log records were returned for this source.";
-    logRows.append(note);
-    return;
-  }
-  for (const record of logs.records) {
-    const row = document.createElement("div");
-    row.className = "log-row";
-    const time = document.createElement("time");
-    const parsed = record.timestamp === null ? null : new Date(record.timestamp);
-    time.textContent =
-      parsed === null || Number.isNaN(parsed.getTime())
-        ? "—"
-        : parsed.toLocaleTimeString();
-    const level = document.createElement("b");
-    level.className = `log-level severity-${severityTone(record.severity)}`;
-    level.textContent = record.severity === null ? "—" : record.severity.toUpperCase();
-    const message = document.createElement("span");
-    message.textContent = record.message + (record.truncated ? " …" : "");
-    const source = document.createElement("code");
-    source.textContent = record.source;
-    row.append(time, level, message, source);
-    logRows.append(row);
-  }
+  logRefresh.disabled = false;
+  logRefresh.textContent = "Refresh";
+  const loaded = new Date(logs.requestedAt);
+  logState.textContent = Number.isNaN(loaded.getTime()) ? "Snapshot loaded" :
+    `Loaded at ${loaded.toLocaleTimeString([], { hour12: false })}`;
+  logViewer.setRecords(logs.records, logs.truncated);
 }
 
 function renderLogsError(message: string, retryable: boolean): void {
   logState.textContent = message;
-  logRows.textContent = "";
-  const note = document.createElement("p");
-  note.className = "log-empty";
-  note.textContent = retryable
-    ? "Logs are temporarily unavailable. Try again in a moment."
-    : "Logs are unavailable for this source.";
-  logRows.append(note);
+  logRefresh.disabled = false;
+  logRefresh.textContent = "Refresh";
+  logViewer.setState(retryable
+    ? "Logs are temporarily unavailable. Use Refresh to try again."
+    : "Logs are unavailable for this source. Choose another source.");
 }
 
 // --- Copy action and toast ---------------------------------------------------
@@ -633,8 +661,14 @@ function setStaleNote(show: boolean, message: string): void {
 }
 
 async function refreshSnapshot(): Promise<void> {
-  if (document.hidden) return;
-  const result = await fetchSnapshot(state.etag);
+  if (document.hidden || refreshingSnapshot) return;
+  refreshingSnapshot = true;
+  let result;
+  try {
+    result = await fetchSnapshot(state.etag);
+  } finally {
+    refreshingSnapshot = false;
+  }
   if (result.status === "error") {
     setStaleNote(true, "Live data is stale — refresh failed.");
     return;
@@ -649,10 +683,26 @@ async function refreshSnapshot(): Promise<void> {
     state.snapshot = result.snapshot;
     buildAtlas(result.snapshot);
     initSelection();
+    if (state.query !== "") applyFilter();
     return;
   }
+  const topologyChanged = state.snapshot.catalogRevision !== result.snapshot.catalogRevision
+    || state.snapshot.services.map(s => s.id).join() !== result.snapshot.services.map(s => s.id).join();
   state.snapshot = result.snapshot;
-  patchAll(result.snapshot);
+  if (topologyChanged) {
+    const selected = state.selectedId;
+    state.selectedId = null;
+    buildAtlas(result.snapshot);
+    if (selected !== null && result.snapshot.services.some(s => s.id === selected)) {
+      selectService(selected);
+    } else {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      updateLogsDrawer();
+    }
+    applyFilter();
+  } else {
+    patchAll(result.snapshot);
+  }
 }
 
 function patchAll(snapshot: Snapshot): void {
@@ -696,6 +746,14 @@ function wireEvents(): void {
   });
 
   latitudes.addEventListener("click", (event) => {
+    const inspect = rowFromEvent(event, "[data-inspect-logs]");
+    if (inspect) {
+      selectService(inspect.dataset.inspectLogs ?? null);
+      logDrawer.open = true;
+      logDrawer.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "auto" : "smooth" });
+      logDrawer.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
+      return;
+    }
     const button = rowFromEvent(event, ".service-select");
     if (button) {
       const row = button.closest<HTMLElement>(".service-row");
@@ -718,6 +776,7 @@ function wireEvents(): void {
   });
 
   logDrawer.addEventListener("toggle", () => {
+    $("#log-toggle-label").textContent = logDrawer.open ? "Close logs" : "Open logs";
     if (!logDrawer.open) return;
     const service = state.snapshot?.services.find((s) => s.id === state.selectedId);
     if (service) void loadLogs(service, false);
@@ -731,7 +790,7 @@ function wireEvents(): void {
     const service = state.snapshot?.services.find((s) => s.id === state.selectedId);
     if (service) void loadLogs(service, false);
   });
-  $("#log-refresh").addEventListener("click", () => {
+  logRefresh.addEventListener("click", () => {
     const service = state.snapshot?.services.find((s) => s.id === state.selectedId);
     if (service) void loadLogs(service, true);
   });
@@ -779,6 +838,7 @@ async function boot(): Promise<void> {
     state.snapshot = result.snapshot;
     buildAtlas(result.snapshot);
     initSelection();
+    if (state.query !== "") applyFilter();
   }
   window.setInterval(() => void refreshSnapshot(), POLL_INTERVAL_MS);
 }

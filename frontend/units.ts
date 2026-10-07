@@ -5,12 +5,12 @@ import {
   fetchUnitLogs,
   fetchUnits,
   submitOperation,
-  type LogRecord,
   type OperationKind,
   type UnitInventoryResponse,
   type UnitSnapshot,
 } from "./api";
 import { askConfirmation, formatBytes, formatObserved, showToast, stateLabel } from "./shell";
+import { LogViewer } from "./logs";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -24,6 +24,7 @@ let inventory: UnitInventoryResponse | null = null;
 let selectedName: string | null = null;
 let query = "";
 let filter: "default" | "all" = "default";
+const journalPanels = new Map<string, HTMLElement>();
 
 function visibleUnits(units: UnitSnapshot[]): UnitSnapshot[] {
   const q = query.trim().toLowerCase();
@@ -129,6 +130,7 @@ function buildRow(unit: UnitSnapshot): HTMLElement {
   const select = document.createElement("button");
   select.type = "button";
   select.className = "unit-select";
+  select.setAttribute("aria-expanded", String(unit.name === selectedName));
   select.addEventListener("click", () => selectUnit(unit.name));
   const chevron = document.createElement("span");
   chevron.className = "chevron";
@@ -184,8 +186,8 @@ function buildDossier(unit: UnitSnapshot): HTMLElement {
       ["Classification", unit.protection],
       ["Related service", unit.relatedService ?? "—"],
     ]),
-    dossierLogs(unit),
     dossierActions(unit),
+    dossierLogs(unit),
   );
   return dossier;
 }
@@ -208,67 +210,43 @@ function dossierSection(title: string, facts: [string, string][]): HTMLElement {
 }
 
 function dossierLogs(unit: UnitSnapshot): HTMLElement {
+  const existing = journalPanels.get(unit.name);
+  if (existing) return existing;
   const section = document.createElement("section");
+  section.className = "unit-journal";
   const heading = document.createElement("h3");
   heading.textContent = "Journal";
-  section.append(heading);
-  const container = document.createElement("div");
-  container.className = "unit-log-panel";
-  const placeholder = document.createElement("p");
-  placeholder.className = "dossier-none";
-  placeholder.textContent = "Load recent journal records.";
+  const header = document.createElement("div");
+  header.className = "unit-journal-header";
+  const viewer = new LogViewer(`Journal for ${unit.name}`);
+  viewer.setState("Load the last 100 journal records for this unit.");
   const load = document.createElement("button");
   load.type = "button";
   load.className = "button-route";
   load.textContent = "Load journal";
   load.addEventListener("click", async () => {
-    placeholder.textContent = "Loading…";
+    load.disabled = true;
+    load.textContent = "Loading…";
+    viewer.setState("Loading recent journal records…", true);
     const logs = await fetchUnitLogs(unit.name);
+    load.disabled = false;
     if (logs === null) {
-      placeholder.textContent = "Journal is unavailable for this unit.";
+      load.textContent = "Retry journal";
+      viewer.setState("Journal is unavailable for this unit. Use Retry journal to try again.");
       return;
     }
-    placeholder.remove();
-    load.remove();
-    for (const record of logs.records.slice(0, 20)) {
-      container.append(renderLogRecord(record));
-    }
-    if (logs.records.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "dossier-none";
-      empty.textContent = "No journal records returned.";
-      container.append(empty);
-    }
+    load.textContent = "Refresh journal";
+    viewer.setRecords(logs.records, logs.truncated);
   });
-  container.append(placeholder, load);
-  section.append(container);
+  header.append(heading, load);
+  section.append(header, viewer.element);
+  journalPanels.set(unit.name, section);
   return section;
-}
-
-function renderLogRecord(record: LogRecord): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "unit-log-row";
-  const time = document.createElement("time");
-  const parsed = record.timestamp === null ? null : new Date(record.timestamp);
-  time.textContent =
-    parsed === null || Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleTimeString();
-  const level = document.createElement("b");
-  level.className = `log-level severity-${
-    record.severity === null || record.severity === "info" || record.severity === "debug"
-      ? "neutral"
-      : record.severity === "warning"
-        ? "warning"
-        : "critical"
-  }`;
-  level.textContent = record.severity === null ? "—" : record.severity.toUpperCase();
-  const message = document.createElement("span");
-  message.textContent = record.message;
-  row.append(time, level, message);
-  return row;
 }
 
 function dossierActions(unit: UnitSnapshot): HTMLElement {
   const section = document.createElement("section");
+  section.className = "unit-actions";
   const heading = document.createElement("h3");
   heading.textContent = "Operations";
   section.append(heading);

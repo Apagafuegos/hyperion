@@ -19,6 +19,8 @@ def get(client, path, identity=True, **kwargs):
     headers = kwargs.pop("headers", {})
     if identity:
         headers["X-Authentik-Username"] = "owner"
+        headers["X-Management-Proxy-Secret"] = "hyperion-test-proxy-proof"
+        headers["X-Authentik-Groups"] = "authentik Admins"
     return client.get(path, headers=headers, **kwargs)
 
 
@@ -51,7 +53,9 @@ def test_snapshot_shape_and_content(client) -> None:
     assert payload["fresh"] is True
     assert len(payload["services"]) == 10
     assert [t["id"] for t in payload["territories"]] == [
-        "applications", "services", "foundations",
+        "applications",
+        "services",
+        "foundations",
     ]
     summary = payload["summary"]
     assert summary["total"] == 10
@@ -163,9 +167,7 @@ def _fixture_app_settings(state_dir: Path) -> Settings:
 
 def test_snapshot_becomes_ready_after_transient_initial_failure(monkeypatch, tmp_path) -> None:
     """A failed initial cycle must not prevent the supervisor from self-healing."""
-    monkeypatch.setattr(
-        main_module, "_build_runtime_provider", lambda settings: FlakyRuntime()
-    )
+    monkeypatch.setattr(main_module, "_build_runtime_provider", lambda settings: FlakyRuntime())
     monkeypatch.setattr(
         main_module,
         "_build_probe_provider",

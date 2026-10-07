@@ -6,6 +6,8 @@
 <title>Hyperion — Operations Console</title>
 <meta name="color-scheme" content="light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'">
+<link rel="preload" href="/static/assets/recursive-latin-full-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/assets/geologica-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/assets/styles.css">
 </head>
 <body data-workspace="{{ workspace }}">
@@ -15,6 +17,7 @@
     <a class="brand" href="/overview" aria-label="Hyperion home">
       <span class="brand-mark" aria-hidden="true"></span>
       <strong class="brand-title">Hyperion</strong>
+      {% if fixture_mode %}<span class="fixture-label">Fixture data</span>{% endif %}
     </a>
     <label class="global-search">
       <span class="search-icon" aria-hidden="true"></span>
@@ -22,11 +25,11 @@
       <kbd class="search-key">⌘ K</kbd>
     </label>
     <nav class="global-nav" aria-label="Workspaces">
-      <a class="nav-destination{% if workspace == 'overview' %} active{% endif %}" href="/overview">Overview</a>
-      <a class="nav-destination{% if workspace == 'atlas' %} active{% endif %}" href="/atlas">Atlas</a>
-      <a class="nav-destination{% if workspace == 'schedules' %} active{% endif %}" href="/schedules">Schedules</a>
-      <a class="nav-destination{% if workspace == 'units' %} active{% endif %}" href="/units">Units</a>
-      <a class="nav-destination{% if workspace == 'activity' %} active{% endif %}" href="/activity">Activity</a>
+      <a class="nav-destination{% if workspace == 'overview' %} active{% endif %}" href="/overview"{% if workspace == 'overview' %} aria-current="page"{% endif %}>Overview</a>
+      <a class="nav-destination{% if workspace == 'atlas' %} active{% endif %}" href="/atlas"{% if workspace == 'atlas' %} aria-current="page"{% endif %}>Atlas</a>
+      <a class="nav-destination{% if workspace == 'schedules' %} active{% endif %}" href="/schedules"{% if workspace == 'schedules' %} aria-current="page"{% endif %}>Schedules</a>
+      <a class="nav-destination{% if workspace == 'units' %} active{% endif %}" href="/units"{% if workspace == 'units' %} aria-current="page"{% endif %}>Units</a>
+      <a class="nav-destination{% if workspace == 'activity' %} active{% endif %}" href="/activity"{% if workspace == 'activity' %} aria-current="page"{% endif %}>Activity</a>
     </nav>
   </div>
 </header>
@@ -56,24 +59,24 @@
     <summary>
       <strong>Logs</strong>
       <span class="log-drawer-subject" id="log-subject">Select a service to inspect its logs.</span>
-      <span class="open-label">Open logs</span>
+      <span class="open-label" id="log-toggle-label">Open logs</span>
     </summary>
     <div class="log-controls">
       <label>Source
-        <select id="log-source"></select>
+        <select id="log-source" disabled></select>
       </label>
-      <label>Tail
-        <select id="log-tail">
+      <label>Last records
+        <select id="log-tail" disabled>
           <option value="50">50</option>
           <option value="100" selected>100</option>
           <option value="250">250</option>
           <option value="500">500</option>
         </select>
       </label>
-      <button type="button" id="log-refresh" class="button-route">Refresh</button>
+      <button type="button" id="log-refresh" class="button-route" disabled>Refresh</button>
       <span class="log-state" id="log-state" role="status"></span>
     </div>
-    <div id="log-rows" class="log-rows"></div>
+    <div id="log-viewer"></div>
   </details>
 
   <div id="toast" class="toast" role="status" hidden></div>

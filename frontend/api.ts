@@ -314,7 +314,7 @@ export interface OperationResult {
 
 export async function fetchHost(): Promise<HostEvidence | null> {
   try {
-    const response = await fetch("/api/v1/host", { cache: "no-store" });
+    const response = await fetch("/api/v1/host", { cache: "no-store", signal: AbortSignal.timeout(8_000) });
     if (!response.ok) return null;
     return (await response.json()) as HostEvidence;
   } catch {
@@ -326,6 +326,7 @@ export async function fetchHostHistory(window = "30m"): Promise<HostHistoryRespo
   try {
     const response = await fetch(`/api/v1/host/history?window=${encodeURIComponent(window)}`, {
       cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) return null;
     return (await response.json()) as HostHistoryResponse;
@@ -336,7 +337,7 @@ export async function fetchHostHistory(window = "30m"): Promise<HostHistoryRespo
 
 export async function fetchUnits(): Promise<UnitInventoryResponse | null> {
   try {
-    const response = await fetch("/api/v1/units", { cache: "no-store" });
+    const response = await fetch("/api/v1/units", { cache: "no-store", signal: AbortSignal.timeout(8_000) });
     if (!response.ok) return null;
     return (await response.json()) as UnitInventoryResponse;
   } catch {
@@ -348,7 +349,7 @@ export async function fetchUnitLogs(unit: string): Promise<UnitLogsResponse | nu
   try {
     const response = await fetch(
       `/api/v1/units/${encodeURIComponent(unit)}/logs?tail=100`,
-      { cache: "no-store" },
+      { cache: "no-store", signal: AbortSignal.timeout(8_000) },
     );
     if (!response.ok) return null;
     return (await response.json()) as UnitLogsResponse;
@@ -359,7 +360,7 @@ export async function fetchUnitLogs(unit: string): Promise<UnitLogsResponse | nu
 
 export async function fetchSchedules(): Promise<ScheduleInventoryResponse | null> {
   try {
-    const response = await fetch("/api/v1/schedules", { cache: "no-store" });
+    const response = await fetch("/api/v1/schedules", { cache: "no-store", signal: AbortSignal.timeout(8_000) });
     if (!response.ok) return null;
     return (await response.json()) as ScheduleInventoryResponse;
   } catch {
@@ -369,7 +370,7 @@ export async function fetchSchedules(): Promise<ScheduleInventoryResponse | null
 
 export async function fetchActivity(limit = 100): Promise<ActivityResponse | null> {
   try {
-    const response = await fetch(`/api/v1/activity?limit=${limit}`, { cache: "no-store" });
+    const response = await fetch(`/api/v1/activity?limit=${limit}`, { cache: "no-store", signal: AbortSignal.timeout(8_000) });
     if (!response.ok) return null;
     return (await response.json()) as ActivityResponse;
   } catch {
@@ -412,7 +413,7 @@ export async function fetchSnapshot(etag: string | null): Promise<SnapshotResult
   try {
     const headers: Record<string, string> = {};
     if (etag !== null) headers["If-None-Match"] = etag;
-    const response = await fetch("/api/v1/snapshot", { headers, cache: "no-store" });
+    const response = await fetch("/api/v1/snapshot", { headers, cache: "no-store", signal: AbortSignal.timeout(8_000) });
     if (response.status === 304) return { status: "not-modified" };
     if (!response.ok) return { status: "error", message: `Snapshot request failed (${response.status}).` };
     const snapshot = (await response.json()) as Snapshot;
@@ -432,7 +433,7 @@ export async function fetchLogs(
     if (source !== null) params.set("source", source);
     const response = await fetch(
       `/api/v1/services/${encodeURIComponent(serviceId)}/logs?${params}`,
-      { cache: "no-store" },
+      { cache: "no-store", signal: AbortSignal.timeout(8_000) },
     );
     const body = (await response.json()) as
       | { error?: { code?: string; message?: string; retryable?: boolean } }

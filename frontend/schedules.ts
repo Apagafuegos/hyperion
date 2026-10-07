@@ -6,7 +6,7 @@ import {
   type ScheduleInventoryResponse,
   type ScheduleSnapshot,
 } from "./api";
-import { stateLabel } from "./shell";
+import { stateLabel, statusChip } from "./shell";
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -117,6 +117,7 @@ function buildRow(schedule: ScheduleSnapshot): HTMLElement {
   const name = document.createElement("button");
   name.type = "button";
   name.className = "schedule-select";
+  name.setAttribute("aria-expanded", String(schedule.id === selectedId));
   name.addEventListener("click", () => select(schedule.id));
   const strong = document.createElement("strong");
   strong.className = "schedule-name";
@@ -134,9 +135,7 @@ function buildRow(schedule: ScheduleSnapshot): HTMLElement {
   next.className = "schedule-next";
   next.textContent = schedule.nextRun === null ? "Not observed" : new Date(schedule.nextRun).toLocaleString();
 
-  const result = document.createElement("span");
-  result.className = `status status-${schedule.lastResult === "success" ? "reachable" : schedule.lastResult === "failed" ? "down" : "dormant"}`;
-  result.textContent = stateLabel(schedule.lastResult);
+  const result = statusChip(schedule.lastResult);
 
   const owner = document.createElement("span");
   owner.className = "schedule-owner";

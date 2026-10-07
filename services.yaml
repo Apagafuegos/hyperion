@@ -21,6 +21,34 @@ services:
       acceptedStatusClasses: [2, 3, 4]
     logs:
       sources: [t3code.service]
+    diagnostics:
+      endpoints:
+        primary:
+          namespace: host
+          protocol: tcp
+          address: 127.0.0.1
+          port: 3773
+
+  - id: hyperion
+    name: Hyperion
+    description: Service atlas and operations console
+    territory: services
+    kind: web
+    action:
+      type: open
+      url: https://hyperion.carlos-santos.es
+    runtime:
+      provider: systemd
+      components:
+        - selector: hyperion.service
+          role: primary
+          required: true
+    routeProbe:
+      method: GET
+      url: https://hyperion.carlos-santos.es
+      acceptedStatusClasses: [2, 3, 4]
+    logs:
+      sources: [hyperion.service]
 
   - id: authentik
     name: Authentik

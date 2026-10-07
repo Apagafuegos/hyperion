@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import os
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -26,12 +29,31 @@ def _as_int(value: object) -> object:
     return value
 
 
-def require_identity(identity: Annotated[str | None, Depends(_identity_header)]) -> str:
-    if identity is None or not identity.strip():
-        raise ApiError(
-            401, "AUTHENTICATION_REQUIRED", "Authentik identity header is required.", False
-        )
+def require_identity(
+    request: Request, identity: Annotated[str | None, Depends(_identity_header)]
+) -> str:
+    read_token = os.environ.get("HYPERION_READ_TOKEN", "")
+    supplied = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    if read_token and hmac.compare_digest(supplied, read_token):
+        if request.method not in {"GET", "HEAD"}:
+            raise ApiError(403, "READ_ONLY", "This credential permits reading only.", False)
+        principal = "connector:" + hashlib.sha256(read_token.encode()).hexdigest()
+        request.state.authenticated_principal = principal
+        return principal
+    secret = os.environ.get("MANAGEMENT_PROXY_SECRET", "")
+    proof = request.headers.get("X-Management-Proxy-Secret", "")
+    groups = request.headers.get("X-Authentik-Groups", "").split("|")
+    if not secret or not hmac.compare_digest(proof, secret) or not identity:
+        raise ApiError(401, "AUTHENTICATION_REQUIRED", "Trusted authentication is required.", False)
+    if "authentik Admins" not in groups:
+        raise ApiError(403, "ADMIN_REQUIRED", "Administrator access is required.", False)
+    request.state.authenticated_principal = "admin:" + identity
     return identity
+
+
+def authenticated_principal(request: Request, _: Annotated[str, Depends(require_identity)]) -> str:
+    """Private reference scope; identity display names cannot collide with credentials."""
+    return str(request.state.authenticated_principal)
 
 
 @router.get(
@@ -144,8 +166,7 @@ async def get_service_logs(
         Query(
             min_length=1,
             max_length=128,
-            description="Allowlisted component selector. Omit to aggregate all configured "
-            "sources.",
+            description="Allowlisted component selector. Omit to aggregate all configured sources.",
         ),
     ] = None,
     tail: Annotated[Literal[50, 100, 250, 500], BeforeValidator(_as_int), Query()] = 100,

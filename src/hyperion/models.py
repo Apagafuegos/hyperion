@@ -12,6 +12,7 @@ schema's `$defs` keys exactly. Plain `TypeAlias` assignments are inlined.
 from __future__ import annotations
 
 from datetime import datetime
+from ipaddress import ip_address
 from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -133,6 +134,24 @@ class Logs(CatalogModel):
         return value
 
 
+class DiagnosticEndpoint(CatalogModel):
+    namespace: Literal["host"]
+    protocol: Literal["tcp"]
+    address: Annotated[str, Field(min_length=2, max_length=45)]
+    port: Annotated[int, Field(ge=1, le=65535, strict=True)]
+
+    @field_validator("address")
+    @classmethod
+    def _literal_address(cls, value: str) -> str:
+        if "%" in value:
+            raise ValueError("scoped IPv6 addresses are not supported")
+        return str(ip_address(value))
+
+
+class ServiceDiagnostics(CatalogModel):
+    endpoints: Annotated[dict[id, DiagnosticEndpoint], Field(max_length=16)]
+
+
 class Service(CatalogModel):
     service_id: Annotated[id, Field(alias="id")]
     name: Annotated[str, Field(min_length=1, max_length=64)]
@@ -144,6 +163,7 @@ class Service(CatalogModel):
     runtime: Runtime
     route_probe: Annotated[RouteProbe | None, Field(alias="routeProbe", default=None)]
     logs: Logs
+    diagnostics: ServiceDiagnostics | None = None
     dependencies: Annotated[list[id], Field(default=[], json_schema_extra={"uniqueItems": True})]
 
     @field_validator("dependencies")
@@ -242,6 +262,15 @@ class RouteSnapshot(ApiModel):
     error: Literal["dns", "timeout", "tls", "connection", "http", "unknown"] | None
 
 
+class DeploymentProvenance(ApiModel):
+    deployment_id: str | None = Field(max_length=128)
+    commit_sha: str | None = Field(max_length=64)
+    started_at: datetime | None
+    completed_at: datetime | None
+    status: str | None = Field(max_length=64)
+    environment: str | None = Field(max_length=128)
+
+
 class ComponentSnapshot(ApiModel):
     key: str = Field(max_length=128)
     label: str = Field(max_length=64)
@@ -253,6 +282,7 @@ class ComponentSnapshot(ApiModel):
     health: HealthState
     observed_at: datetime | None
     image: str | None = Field(max_length=256)
+    deployment: DeploymentProvenance | None = None
     uptime_seconds: int | None = Field(ge=0)
     restart_count: int | None = Field(ge=0)
     cpu_percent: float | None = Field(ge=0)
@@ -300,6 +330,7 @@ class ServiceSnapshot(ApiModel):
     components: list[ComponentSnapshot]
     dependencies: list[DependencySnapshot]
     log_sources: list[LogSource]
+    diagnostic_endpoints: ServiceDiagnostics | None = None
 
 
 class AtlasSnapshot(ApiModel):
@@ -321,9 +352,10 @@ class LogRecord(ApiModel):
     source: str = Field(max_length=128)
     provider: Literal["docker", "journald"]
     stream: Literal["stdout", "stderr", "journal", "unknown"]
-    severity: Literal[
-        "debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"
-    ] | None
+    severity: (
+        Literal["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
+        | None
+    )
     message: str = Field(max_length=16384)
     truncated: bool
 
@@ -436,8 +468,18 @@ type UnitState = Literal[
     "active", "activating", "reloading", "deactivating", "inactive", "failed", "unknown"
 ]
 type UnitFileState = Literal[
-    "enabled", "enabled-runtime", "linked", "masked", "disabled", "static",
-    "indirect", "generated", "transient", "bad", "not-found", "unknown"
+    "enabled",
+    "enabled-runtime",
+    "linked",
+    "masked",
+    "disabled",
+    "static",
+    "indirect",
+    "generated",
+    "transient",
+    "bad",
+    "not-found",
+    "unknown",
 ]
 
 
@@ -510,7 +552,7 @@ class ManagedScheduleDefinition(ApiModel):
     on_calendar: str = Field(min_length=1, max_length=128)
     executable: str = Field(pattern=r"^/[^ \t]+$", min_length=1, max_length=256)
     arguments: list[str] = Field(default=[], max_length=64)
-    user: str = Field(pattern=r"^[a-z_][a-z0-9_-]*$", default="root", max_length=64)
+    user: str = Field(pattern=r"^[a-z_][a-z0-9_-]*$", default="hyperion-jobs", max_length=64)
     working_directory: str | None = Field(default=None, pattern=r"^/[^ \t]*$", max_length=256)
     timeout_seconds: int = Field(default=3600, ge=1, le=86400)
     overlap_policy: Literal["allow", "drop", "queue"] = "drop"
@@ -568,7 +610,13 @@ class ActivityResponse(ApiModel):
 
 type OperationKind = Literal["start", "stop", "restart", "enable", "disable", "trigger"]
 type OperationState = Literal[
-    "pending", "success", "partial", "timeout", "failed", "denied", "stale",
+    "pending",
+    "success",
+    "partial",
+    "timeout",
+    "failed",
+    "denied",
+    "stale",
     "helper_unavailable",
 ]
 

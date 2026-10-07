@@ -13,6 +13,7 @@ in-process policy evaluator.
 from __future__ import annotations
 
 import asyncio
+import configparser
 import json
 import logging
 import os
@@ -43,7 +44,7 @@ ALLOWED_OPERATIONS: dict[str, tuple[str, ...]] = {
 
 # Operations that require the target to be explicitly allowlisted; everything
 # else is governed by protected-unit policy + inventory derivation.
-_STRONG_OPERATIONS = {"start", "stop", "restart", "enable", "disable", "enable-now"}
+_STRONG_OPERATIONS = {"start", "stop", "restart", "enable", "disable", "enable-now", "trigger"}
 
 # Access-critical units that are protected by default. Enforced independently
 # of the web application: even a correctly-shaped request is refused here.
@@ -53,7 +54,7 @@ PROTECTED_UNITS = frozenset(
         "systemd-networkd.service", "NetworkManager.service", "networking.service",
         "network.service",
         "docker.service",
-        "caddy.service",
+        "caddy.service", "hyperion.service", "hyperion-ops.service", "hyperion-ops.timer",
         "authentik-server.service", "authentik-worker.service",
     }
 )
@@ -100,6 +101,8 @@ class HelperPolicy:
         """Return (allowed, reason). The helper's word is final."""
         if operation not in _OPERATION_TYPES:
             return False, f"unknown operation {operation!r}"
+        if unit in PROTECTED_UNITS:
+            return False, "unit is protected by Hyperion policy"
         if operation == "daemon-reload":
             return True, None
         managed = _MANAGED_UNIT_PATTERN.fullmatch(unit) is not None
@@ -192,13 +195,15 @@ def _write_unit_result(
     if content is None:
         return base(False, "write-unit requires content")
     try:
-        _validate_unit_content(content)
+        _validate_unit_content(content, unit)
     except OperationDenied as exc:
         return base(False, str(exc))
     target = managed_dir / unit
     try:
         managed_dir.mkdir(parents=True, exist_ok=True)
         tmp = target.with_suffix(target.suffix + ".tmp")
+        if unit.endswith(".service"):
+            content += "\n[Service]\nNoNewPrivileges=yes\nCapabilityBoundingSet=\nAmbientCapabilities=\nProtectSystem=strict\nProtectHome=yes\nPrivateTmp=yes\nPrivateDevices=yes\nProtectKernelTunables=yes\nProtectKernelModules=yes\nProtectControlGroups=yes\nRestrictSUIDSGID=yes\nRestrictNamespaces=yes\nInaccessiblePaths=/run/docker.sock /run/hyperion /run/docker-observer\n"
         tmp.write_text(content, encoding="utf-8")
         tmp.replace(target)
     except OSError as exc:
@@ -232,23 +237,46 @@ def _remove_unit_result(unit: str, managed_dir: Path) -> dict[str, object]:
     }
 
 
-def _validate_unit_content(content: str) -> None:
-    """Reject content that could escape the managed namespace or confuse
-    systemd parsing: over-size, NUL bytes, and non-unit-file line shapes."""
-    if len(content.encode("utf-8")) > _MAX_UNIT_BYTES:
-        raise OperationDenied("unit content exceeds the size limit")
-    if "\x00" in content:
-        raise OperationDenied("unit content must not contain NUL bytes")
-    for line in content.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith(";"):
+def _validate_unit_content(content: str, unit: str = "hyperion-task.service") -> None:
+    """Accept only the scheduler schema, running as an isolated unprivileged user."""
+    if len(content.encode()) > _MAX_UNIT_BYTES or any(c in content for c in ("\x00", "\r", "\\", "%")):
+        raise OperationDenied("invalid unit content")
+    parser = configparser.ConfigParser(interpolation=None, strict=True)
+    parser.optionxform = str
+    try:
+        parser.read_string(content)
+    except configparser.Error as exc:
+        raise OperationDenied("invalid unit syntax") from exc
+    allowed = {
+        "Unit": {"Description", "After"},
+        "Service": {"Type", "User", "WorkingDirectory", "ExecStart", "TimeoutStartSec"},
+        "Timer": {"OnCalendar", "Persistent", "Unit", "RandomizedDelaySec", "AccuracySec"},
+        "Install": {"WantedBy"},
+    }
+    for section in parser:
+        if section == "DEFAULT":
+            if parser.defaults():
+                raise OperationDenied("default directives are forbidden")
             continue
-        if stripped.startswith("[") and stripped.endswith("]"):
-            if not re.fullmatch(r"\[[A-Za-z][A-Za-z0-9]*\]", stripped):
-                raise OperationDenied("invalid section header")
-            continue
-        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*=[^\n]*", stripped):
-            raise OperationDenied("invalid directive line")
+        if section not in allowed or set(parser[section]) - allowed[section]:
+            raise OperationDenied("directive not permitted by scheduler policy")
+        if any("\n" in v for v in parser[section].values()):
+            raise OperationDenied("multiline directives are forbidden")
+    if unit.endswith(".service"):
+        if set(parser.sections()) != {"Unit", "Service"}:
+            raise OperationDenied("invalid service sections")
+        service = parser["Service"]
+        if service.get("User") != "hyperion-jobs" or service.get("Type") != "oneshot":
+            raise OperationDenied("scheduled commands must run as hyperion-jobs (unprivileged)")
+        if not service.get("ExecStart", "").startswith("/"):
+            raise OperationDenied("an absolute executable path is required")
+    else:
+        if set(parser.sections()) != {"Unit", "Timer", "Install"}:
+            raise OperationDenied("invalid timer sections")
+        if parser["Timer"].get("Unit") != unit.removesuffix(".timer") + ".service":
+            raise OperationDenied("timer must reference its own managed service")
+        if parser["Install"].get("WantedBy") != "timers.target":
+            raise OperationDenied("invalid timer installation target")
 
 
 async def _systemctl_runner(argv: list[str]) -> tuple[int, bytes, bytes]:
